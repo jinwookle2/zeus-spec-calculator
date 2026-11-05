@@ -1,0 +1,10 @@
+{
+  "name": "SmartStore - 장애 알림 중계 (ALERT_WEBHOOK_URL 수신)",
+  "nodes": [
+    {"parameters": {"httpMethod": "POST", "path": "dropship-alert", "options": {}}, "name": "알림 Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 2, "position": [0, 0], "webhookId": "dropship-alert"},
+    {"parameters": {"conditions": {"string": [{"value1": "={{$json.body.text}}", "operation": "regex", "value2": "^\\[(ERROR|CRITICAL)\\]"}]}}, "name": "심각도 필터", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [220, 0]},
+    {"parameters": {"content": "여기에 Slack / Telegram / 이메일 노드를 연결하세요 (자격증명은 n8n Credentials 에 저장)."}, "name": "메신저 연결 안내", "type": "n8n-nodes-base.stickyNote", "typeVersion": 1, "position": [440, -120]}
+  ],
+  "connections": {"알림 Webhook": {"main": [[{"node": "심각도 필터", "type": "main", "index": 0}]]}},
+  "settings": {"executionOrder": "v1"}
+}

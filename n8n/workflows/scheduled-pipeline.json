@@ -1,0 +1,15 @@
+{
+  "name": "SmartStore - 주문 수집/발주/송장 (n8n 스케줄)",
+  "nodes": [
+    {"parameters": {"rule": {"interval": [{"field": "minutes", "minutesInterval": 5}]}}, "name": "5분마다", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [0, 0]},
+    {"parameters": {"method": "POST", "url": "={{$env.DROPSHIP_API}}/api/jobs/collect_orders/run", "sendHeaders": true, "headerParameters": {"parameters": [{"name": "X-Service-Token", "value": "={{$env.DROPSHIP_SERVICE_TOKEN}}"}]}, "options": {}}, "name": "주문 수집", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [220, 0]},
+    {"parameters": {"method": "POST", "url": "={{$env.DROPSHIP_API}}/api/jobs/process_orders/run", "sendHeaders": true, "headerParameters": {"parameters": [{"name": "X-Service-Token", "value": "={{$env.DROPSHIP_SERVICE_TOKEN}}"}]}, "options": {}}, "name": "재고확인·발주", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [440, 0]},
+    {"parameters": {"method": "POST", "url": "={{$env.DROPSHIP_API}}/api/jobs/poll_shipments/run", "sendHeaders": true, "headerParameters": {"parameters": [{"name": "X-Service-Token", "value": "={{$env.DROPSHIP_SERVICE_TOKEN}}"}]}, "options": {}}, "name": "송장 수집·발송처리", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [660, 0]}
+  ],
+  "connections": {
+    "5분마다": {"main": [[{"node": "주문 수집", "type": "main", "index": 0}]]},
+    "주문 수집": {"main": [[{"node": "재고확인·발주", "type": "main", "index": 0}]]},
+    "재고확인·발주": {"main": [[{"node": "송장 수집·발송처리", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"}
+}

@@ -1,0 +1,78 @@
+# 로컬/단일 서버 배포. 비밀값은 .env (git 미포함) 또는 Secret Manager 로 주입.
+x-backend-env: &backend-env
+  env_file: .env
+  environment:
+    DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-dropship}:${POSTGRES_PASSWORD:-dropship}@db:5432/${POSTGRES_DB:-dropship}
+    REDIS_URL: redis://redis:6379/0
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dropship}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dropship}
+      POSTGRES_DB: ${POSTGRES_DB:-dropship}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dropship}"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+    restart: unless-stopped
+
+  api:
+    build: ./backend
+    <<: *backend-env
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_started}
+    ports: ["8000:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+    restart: unless-stopped
+
+  worker:
+    build: ./backend
+    <<: *backend-env
+    command: ["celery", "-A", "app.celery_app", "worker", "-l", "info", "--concurrency", "2"]
+    depends_on: [api]
+    restart: unless-stopped
+
+  beat:
+    build: ./backend
+    <<: *backend-env
+    command: ["celery", "-A", "app.celery_app", "beat", "-l", "info", "--schedule", "/tmp/celerybeat-schedule"]
+    depends_on: [api]
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./frontend
+      args: {BACKEND_URL: "http://api:8000"}
+    depends_on: [api]
+    ports: ["3000:3000"]
+    restart: unless-stopped
+
+  n8n:
+    image: n8nio/n8n:1.95.3
+    profiles: ["n8n"]
+    environment:
+      N8N_HOST: localhost
+      GENERIC_TIMEZONE: Asia/Seoul
+      DROPSHIP_API: http://api:8000
+      DROPSHIP_SERVICE_TOKEN: ${SERVICE_TOKEN}
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+    ports: ["5678:5678"]
+    volumes: [n8ndata:/home/node/.n8n, ./n8n/workflows:/workflows:ro]
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  n8ndata:
