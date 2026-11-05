@@ -12,7 +12,9 @@
 | arthgohen/inventory-sync-n8n | Shopify↔WooCommerce 재고 동기화 (n8n+MySQL+Redis) | 라이선스 파일 없음 | 2025-11-05 (1커밋, 유지보수 미약) | **코드 미사용.** 패턴 참고: 단방향 토글 환경변수, 대사(reconcile) 크론, DLQ 테이블, 알림 |
 | n8n 주문·배송 템플릿 | n8n.io/workflows 목록 페이지에서 개별 템플릿을 특정하지 못함 (검색 파라미터 미동작) | — | — | 일반 패턴(스케줄 → HTTP → 분기 → 알림)으로 자체 워크플로 작성 |
 
-플랫폼 혼동 방지: Shopify, WooCommerce, Coupang API 형식은 사용하지 않았다. 네이버 연동 코드는 `backend/app/naver/` 에만 있으며, 엔드포인트마다 [공식]/[2차] 출처를 주석으로 표기했다.
+플랫폼 혼동 방지: Shopify, WooCommerce, Coupang API 형식은 사용하지 않았다. 네이버 연동 코드는 `backend/app/naver/` 에만 있다.
+
+**공식 문서 재확인 (2026-11-05)**: apicenter 공식 문서 v2.91.0 에서 사용하는 모든 엔드포인트를 확인했다(목록은 architecture.md §7). 이 확인으로 택배사 코드 2건(롯데 `HYUNDAI`, 로젠 `KGB`)과 주문의 원상품 번호 필드명(`originalProductId`)을 수정했고, 주문 조회를 24시간 단위 구간으로 나누도록 바꿨다.
 
 ## 구현 가능 vs 계약/승인 필요
 
@@ -38,7 +40,7 @@
 - **Phase 5 네이버 등록**: `naver/`, `services/listing.py` ✅ (Live 는 Dry-run 까지 검증)
 - **Phase 6 주문·발주·배송**: `services/fulfillment.py`, `order_state.py` ✅
 - **Phase 7 관리자**: `frontend/` ✅
-- **Phase 8 테스트·배포**: pytest 38개(SQLite, PostgreSQL 모두 통과), Playwright E2E 1개, docker-compose ✅ (이 개발 환경에는 Docker 데몬이 없어 이미지 빌드는 미검증, compose 문법만 검증)
+- **Phase 8 테스트·배포**: pytest 41개(SQLite, PostgreSQL 모두 통과), Playwright E2E 1개, docker-compose ✅ (이 개발 환경에는 Docker 데몬이 없어 이미지 빌드는 미검증, compose 문법만 검증)
 
 ## 운영 전환 단계 (권장 순서)
 
@@ -53,7 +55,7 @@
 
 ## 남은 작업 (미구현 / 개선)
 - Alembic 마이그레이션 (현재 `create_all`)
-- 네이버 [2차] 엔드포인트와 주문 응답 필드명(`shippingAddress`, `sellerProductCode` 등)을 공식 문서로 재확인
+- 실제 계정으로 주문 응답 샘플을 받아 파서 검증 (필드명은 공식 문서와 대조 완료)
 - 상품군별 고시정보 스키마 자동 매핑 (현재 ETC 상품군 기본값)
 - 네이버 카테고리 전체 동기화 테이블 (현재 Mock 카테고리 사전), 제한 태그 API 연동
 - 옵션 단위 재고/가격 동기화 (현재 상품 단위 + 옵션 재고 참고)

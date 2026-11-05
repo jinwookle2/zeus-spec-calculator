@@ -94,14 +94,33 @@ PAID → STOCK_CHECKED → PURCHASE_REQUESTED → SUPPLIER_CONFIRMED → SHIPPED
 현재는 기동 시 `create_all` 로 생성한다. 운영 전환 시 Alembic 마이그레이션을 도입한다(implementation_plan 참고).
 
 ## 7. 네이버 Commerce API 근거
-| 기능 | 엔드포인트 | 근거 |
-|---|---|---|
-| 토큰 | `POST /v1/oauth2/token` (client_id, timestamp, client_secret_sign, grant_type=client_credentials, type=SELF\|SELLER) | 공식 OpenAPI 스펙 |
-| 서명 | `base64(bcrypt(client_id + "_" + timestamp, salt=client_secret))`, 토큰 유효 3시간 | 공식 스펙 |
-| 상품 등록 / 원상품 조회·수정 | `POST /v2/products`, `GET·PUT /v2/products/origin-products/{no}` | 공식 스펙 |
-| 판매상태 변경 | `PUT /v1/products/origin-products/{no}/change-status` | 공식 스펙 |
-| 이미지 업로드, 카테고리, 제한태그 | `POST /v1/product-images/upload`, `GET /v1/categories`, `GET /v2/tags/restricted-tags` | 2차 출처 → 재확인 필요 |
-| 주문 변경 조회 / 상세 / 발주확인 / 발송 / 클레임 | `/v1/pay-order/seller/product-orders/{last-changed-statuses, query, confirm, dispatch, {id}/claim/...}` | 2차 출처 → 재확인 필요 |
-| Rate limit | 토큰 버킷, 앱 단위(예: 2 rps), 429 `GW.RATE_LIMIT` | 공식 스펙 |
 
-가격과 재고 변경은 공식 엔드포인트(원상품 조회 후 수정)만으로 구현했다. 옵션 재고 전용 API 는 문서를 확인한 뒤 교체할 수 있다.
+출처: 공식 문서 **v2.91.0 (2026-10-28)** (apicenter.commerce.naver.com/docs/commerce-api/current). 2026-11-05 에 페이지별로 확인했다.
+
+| 기능 | 메서드 · 경로 |
+|---|---|
+| 인증 토큰 발급 | `POST /v1/oauth2/token` (client_id, timestamp(ms), client_secret_sign, grant_type=client_credentials, type=SELF\|SELLER). 서명 = base64(bcrypt(`client_id_timestamp`, salt=client_secret)), 유효 3시간 |
+| 상품 이미지 다건 등록 | `POST /v1/product-images/upload` |
+| 전체 카테고리 조회 | `GET /v1/categories` |
+| 원산지 코드 전체 조회 | `GET /v1/product-origin-areas` |
+| 상품정보제공고시 상품군 | `GET /v1/products-for-provided-notice` |
+| (v2) 제한 태그 여부 | `GET /v2/tags/restricted-tags` |
+| (v2) 상품 등록 | `POST /v2/products` |
+| (v2) 원상품 조회 / 수정 | `GET` · `PUT /v2/products/origin-products/{originProductNo}` |
+| 판매상태 변경 | `PUT /v1/products/origin-products/{originProductNo}/change-status` |
+| 옵션 재고·가격 변경 | `PUT /v1/products/origin-products/{originProductNo}/option-stock` (참고, 현재 미사용) |
+| 변경 상품 주문 조회 | `GET /v1/pay-order/seller/product-orders/last-changed-statuses` (lastChangedFrom 필수, lastChangedTo 생략 시 24시간, 최대 300건, `more.moreFrom/moreSequence` 로 이어받기) |
+| 상품 주문 상세 | `POST /v1/pay-order/seller/product-orders/query` (productOrderIds) |
+| 발주 확인 | `POST /v1/pay-order/seller/product-orders/confirm` |
+| 발송 처리 | `POST /v1/pay-order/seller/product-orders/dispatch` (dispatchProductOrders[productOrderId, deliveryMethod, deliveryCompanyCode, trackingNumber, dispatchDate]) |
+| 취소 승인 / 반품 승인 | `POST /v1/pay-order/seller/product-orders/{productOrderId}/claim/cancel/approve` · `/claim/return/approve` |
+| 교환 수거완료 / 재배송 | `.../claim/exchange/collect/approve` · `.../claim/exchange/dispatch` |
+| 정산 (건별/일별) | `GET /v1/pay-settle/settle/case` · `/daily` |
+| Rate limit | 앱 단위 토큰 버킷(예: 2 rps), 429 `GW.RATE_LIMIT` |
+
+공식 문서로 바로잡은 내용:
+- 택배사 코드: **롯데택배 = `HYUNDAI`, 로젠택배 = `KGB`** (CJ대한통운 `CJGLS`, 한진 `HANJIN`, 우체국 `EPOST`, 경동 `KDEXP` 등. 공식 표 약 200개)
+- 주문 상세의 원상품 번호 필드는 `originalProductId` 이고, `productId` 는 채널상품 번호다. 배송지는 `shippingAddress{name, tel1, baseAddress, detailedAddress, zipCode}` 이다.
+- 상품 주문 상태: PAYMENT_WAITING, PAYED, DELIVERING, DELIVERED, PURCHASE_DECIDED, EXCHANGED, CANCELED, RETURNED, CANCELED_BY_NOPAYMENT. 클레임: CANCEL, RETURN, EXCHANGE, PURCHASE_DECISION_HOLDBACK, ADMIN_CANCEL
+
+가격과 재고 변경은 원상품 조회 후 수정 방식으로 구현했다. 옵션 단위 처리가 필요하면 option-stock API 로 교체한다.

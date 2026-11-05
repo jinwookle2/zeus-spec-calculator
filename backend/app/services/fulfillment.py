@@ -37,7 +37,8 @@ LAST_POLL_KEY = "_last_order_poll"
 
 
 def _parse(detail: dict) -> dict:
-    """네이버 상품주문 상세 → 내부 필드. 필드명은 2차 출처 기반이며 운영 전 실제 응답으로 확인 필요."""
+    """네이버 상품주문 상세 → 내부 필드 (공식 문서 v2.91.0 '상품 주문 정보 구조체' 기준).
+    productId = 채널상품번호, originalProductId = 원상품번호, sellerProductCode = 판매자 상품코드."""
     po = detail.get("productOrder", {})
     od = detail.get("order", {})
     addr = po.get("shippingAddress", {}) or {}
@@ -47,7 +48,8 @@ def _parse(detail: dict) -> dict:
         "status": po.get("productOrderStatus"),
         "claim_type": po.get("claimType"),
         "seller_code": po.get("sellerProductCode"),
-        "origin_product_no": str(po.get("originProductNo") or po.get("productId") or ""),
+        "origin_product_no": str(po.get("originalProductId") or ""),
+        "channel_product_no": str(po.get("productId") or ""),
         "option_code": po.get("optionManageCode"),
         "option_text": po.get("productOption"),
         "quantity": int(po.get("quantity") or 1),
@@ -78,6 +80,8 @@ def collect_orders(db: Session, naver: NaverClient) -> dict:
                 product = db.query(Product).filter_by(listing_key=f["seller_code"]).one_or_none()
             if product is None and f["origin_product_no"]:
                 product = db.query(Product).filter_by(naver_origin_product_no=f["origin_product_no"]).one_or_none()
+            if product is None and f["channel_product_no"]:
+                product = db.query(Product).filter_by(naver_channel_product_no=f["channel_product_no"]).one_or_none()
             order = Order(
                 naver_product_order_id=f["product_order_id"], naver_order_id=f["order_id"],
                 product_id=product.id if product else None, supplier_id=product.supplier_id if product else None,
@@ -92,7 +96,7 @@ def collect_orders(db: Session, naver: NaverClient) -> dict:
             summary["new"] += 1
             if product is None:
                 summary["unmatched"] += 1
-                transition(db, order, S.ON_HOLD, SYSTEM, "매핑된 상품 없음 (sellerProductCode/originProductNo)")
+                transition(db, order, S.ON_HOLD, SYSTEM, "매핑된 상품 없음 (sellerProductCode/originalProductId/productId)")
                 raise_alert(db, "warning", "order", f"상품 매핑 실패 주문 {order.naver_product_order_id}")
             continue
         summary["updated"] += 1

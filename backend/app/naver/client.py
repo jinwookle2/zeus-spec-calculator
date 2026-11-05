@@ -4,9 +4,7 @@
 - LiveNaverClient: 실제 API. 변경(쓰기) 호출은 안전 스위치가 꺼져 있으면 Dry-run 으로 기록만 한다.
 - MockNaverClient: 외부 호출 없이 동작 (NAVER_MODE=mock).
 
-엔드포인트 출처
-  [공식] 공식 OpenAPI 스펙(2.0.0-RC)에서 확인
-  [2차]  2차 출처(오픈소스 문서, 2026-07 수집) → 운영 전 apicenter.commerce.naver.com 에서 재확인 필요
+엔드포인트 출처: 네이버 커머스API 공식 문서 v2.91.0 (2026-10-28, apicenter.commerce.naver.com) 에서 전부 확인.
 """
 from __future__ import annotations
 
@@ -26,20 +24,23 @@ from app.models import ApiCallLog, MockNaverOrder, utcnow
 from app.naver.auth import TokenManager, make_signature
 
 EP = {
-    "token": ("POST", "/v1/oauth2/token"),                                          # [공식]
-    "create_product": ("POST", "/v2/products"),                                      # [공식]
-    "origin_product": ("GET", "/v2/products/origin-products/{no}"),                  # [공식]
-    "update_origin_product": ("PUT", "/v2/products/origin-products/{no}"),           # [공식]
-    "change_status": ("PUT", "/v1/products/origin-products/{no}/change-status"),     # [공식]
-    "image_upload": ("POST", "/v1/product-images/upload"),                           # [2차]
-    "categories": ("GET", "/v1/categories"),                                         # [2차]
-    "restricted_tags": ("GET", "/v2/tags/restricted-tags"),                          # [2차]
-    "last_changed": ("GET", "/v1/pay-order/seller/product-orders/last-changed-statuses"),  # [2차]
-    "order_query": ("POST", "/v1/pay-order/seller/product-orders/query"),            # [2차]
-    "confirm": ("POST", "/v1/pay-order/seller/product-orders/confirm"),              # [2차]
-    "dispatch": ("POST", "/v1/pay-order/seller/product-orders/dispatch"),            # [2차]
-    "cancel_approve": ("POST", "/v1/pay-order/seller/product-orders/{id}/claim/cancel/approve"),  # [2차]
-    "return_approve": ("POST", "/v1/pay-order/seller/product-orders/{id}/claim/return/approve"),  # [2차]
+    "token": ("POST", "/v1/oauth2/token"),
+    "create_product": ("POST", "/v2/products"),
+    "origin_product": ("GET", "/v2/products/origin-products/{no}"),
+    "update_origin_product": ("PUT", "/v2/products/origin-products/{no}"),
+    "change_status": ("PUT", "/v1/products/origin-products/{no}/change-status"),
+    "image_upload": ("POST", "/v1/product-images/upload"),
+    "categories": ("GET", "/v1/categories"),
+    "restricted_tags": ("GET", "/v2/tags/restricted-tags"),
+    "last_changed": ("GET", "/v1/pay-order/seller/product-orders/last-changed-statuses"),
+    "order_query": ("POST", "/v1/pay-order/seller/product-orders/query"),
+    "confirm": ("POST", "/v1/pay-order/seller/product-orders/confirm"),
+    "dispatch": ("POST", "/v1/pay-order/seller/product-orders/dispatch"),
+    "cancel_approve": ("POST", "/v1/pay-order/seller/product-orders/{id}/claim/cancel/approve"),
+    "return_approve": ("POST", "/v1/pay-order/seller/product-orders/{id}/claim/return/approve"),
+    # 참고(미사용): 옵션 재고/가격 변경 PUT /v1/products/origin-products/{no}/option-stock
+    #   body: productSalePrice{salePrice}, optionInfo{optionCombinations[{id, stockQuantity, ...}]}
+    "option_stock": ("PUT", "/v1/products/origin-products/{no}/option-stock"),
 }
 
 
@@ -219,16 +220,29 @@ class LiveNaverClient(NaverClient):
         return self._request("origin_product", path_args={"no": origin_no})
 
     def fetch_changed_order_ids(self, since: datetime) -> list[str]:
+        """변경 상품 주문 조회. lastChangedTo 생략 시 24시간 범위만 조회되므로(공식 문서)
+        since ~ 현재를 24시간 창으로 나눠 조회하고, 창 안에서는 more(moreFrom/moreSequence)로 페이지를 넘긴다."""
+        from datetime import timedelta
+
+        def fmt(dt: datetime) -> str:
+            return dt.astimezone(timezone.utc).isoformat(timespec="milliseconds")
+
         ids: list[str] = []
-        params: dict[str, Any] = {"lastChangedFrom": since.astimezone(timezone.utc).isoformat(timespec="milliseconds")}
-        for _ in range(20):
-            body = self._request("last_changed", params=params) or {}
-            data = body.get("data", {})
-            ids += [x["productOrderId"] for x in data.get("lastChangeStatuses", [])]
-            more = data.get("more")
-            if not more:
-                break
-            params = {"lastChangedFrom": more["moreFrom"], "moreSequence": more["moreSequence"]}
+        now = datetime.now(timezone.utc)
+        start = since if since.tzinfo else since.replace(tzinfo=timezone.utc)
+        while start < now:
+            end = min(start + timedelta(hours=24), now)
+            params: dict[str, Any] = {"lastChangedFrom": fmt(start), "lastChangedTo": fmt(end)}
+            for _ in range(100):
+                body = self._request("last_changed", params=params) or {}
+                data = body.get("data", {})
+                ids += [x["productOrderId"] for x in data.get("lastChangeStatuses", [])]
+                more = data.get("more")
+                if not more:
+                    break
+                params = {"lastChangedFrom": more["moreFrom"], "lastChangedTo": fmt(end),
+                          "moreSequence": more["moreSequence"]}
+            start = end
         return list(dict.fromkeys(ids))
 
     def get_product_orders(self, ids: list[str]) -> list[dict]:

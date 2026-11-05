@@ -62,17 +62,43 @@ def test_token_request_and_rate_limit_retry(monkeypatch):
             assert req.headers["authorization"] == "Bearer AT"
             if seen["orders"] == 1:
                 return httpx.Response(429, json={"code": "GW.RATE_LIMIT"})
-            return httpx.Response(200, json={"data": {"lastChangeStatuses": [{"productOrderId": "1"}, {"productOrderId": "2"}]}})
+            q = dict(req.url.params)
+            assert "lastChangedTo" in q
+            if "moreSequence" not in q:
+                return httpx.Response(200, json={"data": {"lastChangeStatuses": [{"productOrderId": "1"}],
+                                                          "more": {"moreFrom": q["lastChangedFrom"], "moreSequence": "7"}}})
+            return httpx.Response(200, json={"data": {"lastChangeStatuses": [{"productOrderId": "2"}]}})
         return httpx.Response(404)
 
     from datetime import datetime, timezone
 
-    ids = _client(handler).fetch_changed_order_ids(datetime.now(timezone.utc))
+    from datetime import timedelta
+
+    ids = _client(handler).fetch_changed_order_ids(datetime.now(timezone.utc) - timedelta(hours=1))
     assert ids == ["1", "2"]
-    assert seen["orders"] == 2
+    assert seen["orders"] == 3  # 429 재시도 1 + 첫 페이지 + more 페이지
     t = seen["token"]
     assert t["grant_type"] == "client_credentials" and t["type"] == "SELF" and t["client_id"] == "cid"
     assert "client_secret_sign" in t and t["timestamp"].isdigit()
+
+
+def test_order_polling_splits_into_24h_windows():
+    from datetime import datetime, timedelta, timezone
+
+    windows = []
+
+    def handler(req):
+        if req.url.path.endswith("/v1/oauth2/token"):
+            return httpx.Response(200, json={"access_token": "AT", "expires_in": 10800})
+        q = dict(req.url.params)
+        windows.append((q["lastChangedFrom"], q["lastChangedTo"]))
+        return httpx.Response(200, json={"data": {"lastChangeStatuses": [{"productOrderId": str(len(windows))}]}})
+
+    ids = _client(handler).fetch_changed_order_ids(datetime.now(timezone.utc) - timedelta(hours=50))
+    assert len(windows) == 3 and ids == ["1", "2", "3"]
+    for (a, b) in windows:
+        assert datetime.fromisoformat(b) - datetime.fromisoformat(a) <= timedelta(hours=24)
+
 
 
 def test_mutations_are_dry_run_when_gate_closed(db):
@@ -115,6 +141,8 @@ def test_mutation_sent_when_gate_open_and_errors_logged(db):
 
 def test_carrier_mapping():
     assert map_carrier("CJ") == "CJGLS"
+    assert map_carrier("롯데택배") == "HYUNDAI" and map_carrier("LOTTE") == "HYUNDAI"  # 공식 코드
+    assert map_carrier("로젠") == "KGB" and map_carrier("경동택배") == "KDEXP"
     assert map_carrier("우체국택배") == "EPOST"
     assert map_carrier("UNKNOWN") is None
     assert map_carrier("FOO", {"FOO": "BAR"}) == "BAR"

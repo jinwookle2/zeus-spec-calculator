@@ -23,7 +23,8 @@ def simulate_order(db: Session, product: Product, quantity: int = 1, option_labe
         "order": {"orderId": f"ORD{n:08d}", "ordererName": rnd.choice(NAMES), "paymentDate": utcnow().isoformat()},
         "productOrder": {
             "productOrderId": po_id, "productOrderStatus": "PAYED", "sellerProductCode": product.listing_key,
-            "originProductNo": product.naver_origin_product_no, "quantity": quantity,
+            "originalProductId": product.naver_origin_product_no, "productId": product.naver_channel_product_no,
+            "quantity": quantity,
             "unitPrice": int(product.sale_price), "totalPaymentAmount": int(product.sale_price) * quantity,
             "productOption": option_label,
             "shippingAddress": {"name": rnd.choice(NAMES), "tel1": f"010-{rnd.randint(1000, 9999)}-{rnd.randint(1000, 9999)}",
