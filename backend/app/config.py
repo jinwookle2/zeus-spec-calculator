@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./dropship.db"
     redis_url: str = "redis://localhost:6379/0"
     celery_eager: bool = False
+    db_auto_migrate: bool = True  # API 기동 시 alembic upgrade head 실행
 
     # 인증
     jwt_secret: str = "change-me-in-production"

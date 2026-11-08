@@ -50,7 +50,24 @@ def session_scope() -> Iterator[Session]:
         db.close()
 
 
+def run_migrations(url: str | None = None) -> None:
+    """alembic upgrade head (운영 기본). backend/alembic.ini 기준."""
+    from pathlib import Path
+
+    from alembic import command
+    from alembic.config import Config
+
+    root = Path(__file__).resolve().parent.parent
+    cfg = Config(str(root / "alembic.ini"))
+    cfg.set_main_option("script_location", str(root / "migrations"))
+    cfg.attributes["db_url"] = url or get_settings().database_url
+    command.upgrade(cfg, "head")
+
+
 def init_db() -> None:
     from app import models  # noqa: F401
 
-    Base.metadata.create_all(bind=engine)
+    if get_settings().db_auto_migrate:
+        run_migrations()
+    else:  # 테스트/임시 환경
+        Base.metadata.create_all(bind=engine)

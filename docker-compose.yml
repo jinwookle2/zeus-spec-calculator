@@ -41,14 +41,16 @@ services:
     build: ./backend
     <<: *backend-env
     command: ["celery", "-A", "app.celery_app", "worker", "-l", "info", "--concurrency", "2"]
-    depends_on: [api]
+    depends_on:
+      api: {condition: service_healthy}   # API 기동 시 DB 마이그레이션 완료 후 시작
     restart: unless-stopped
 
   beat:
     build: ./backend
     <<: *backend-env
     command: ["celery", "-A", "app.celery_app", "beat", "-l", "info", "--schedule", "/tmp/celerybeat-schedule"]
-    depends_on: [api]
+    depends_on:
+      api: {condition: service_healthy}
     restart: unless-stopped
 
   web:

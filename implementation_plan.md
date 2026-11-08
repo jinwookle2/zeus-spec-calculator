@@ -40,7 +40,7 @@
 - **Phase 5 네이버 등록**: `naver/`, `services/listing.py` ✅ (Live 는 Dry-run 까지 검증)
 - **Phase 6 주문·발주·배송**: `services/fulfillment.py`, `order_state.py` ✅
 - **Phase 7 관리자**: `frontend/` ✅
-- **Phase 8 테스트·배포**: pytest 41개(SQLite, PostgreSQL 모두 통과), Playwright E2E 1개, docker-compose ✅ (이 개발 환경에는 Docker 데몬이 없어 이미지 빌드는 미검증, compose 문법만 검증)
+- **Phase 8 테스트·배포**: pytest 47개(SQLite, PostgreSQL 모두 통과), Playwright E2E 1개, docker-compose ✅ (이 개발 환경에는 Docker 데몬이 없어 이미지 빌드는 미검증, compose 문법만 검증)
 
 ## 운영 전환 단계 (권장 순서)
 
@@ -53,13 +53,19 @@
 7. **자동 발주 단계 확대**: 문제가 없으면 해당 공급사 `verified/auto_purchase_allowed=true`, `ALLOW_REAL_PURCHASE=true`, 일일 발주 금액 한도는 작게 시작
 8. **개인정보 전송**: 위탁 계약 확인 후 공급사 `pii_transfer_agreed=true` + `ALLOW_PII_TRANSFER=true`
 
+## 추가 완료 (2026-11-08)
+- Alembic 마이그레이션 + 기동 시 자동 적용 + revision 누락 검사 테스트
+- 네이버 카테고리 동기화와 동기화 카테고리 기반 추천, 관리자 화면 카테고리 검색·변경
+- 등록 전 제한 태그 제거 (`/v2/tags/restricted-tags`)
+- 교환 수거 완료 / 교환 재배송 처리 (API + 화면)
+- 네이버 건별 정산 대사와 수수료 불일치 알림, 매출 분석에 실제 수수료 반영
+- 로그인 잠금(5회/15분), 비밀번호 변경 화면
+
 ## 남은 작업 (미구현 / 개선)
-- Alembic 마이그레이션 (현재 `create_all`)
 - 실제 계정으로 주문 응답 샘플을 받아 파서 검증 (필드명은 공식 문서와 대조 완료)
 - 상품군별 고시정보 스키마 자동 매핑 (현재 ETC 상품군 기본값)
-- 네이버 카테고리 전체 동기화 테이블 (현재 Mock 카테고리 사전), 제한 태그 API 연동
 - 옵션 단위 재고/가격 동기화 (현재 상품 단위 + 옵션 재고 참고)
-- 교환 처리 자동화, 반품 시 공급사 반품 접수 (현재 알림 후 수동)
-- 네이버 정산 API 대사 (현재 매출·이익은 설정값 기반 추정)
-- 관리자 비밀번호 변경/2FA, 로그인 시도 제한
+- 반품 시 공급사 반품 접수, 교환 재배송분의 공급사 재발주 (현재 수동)
+- 2단계 인증(2FA), 관리자 화면의 사용자 관리 (API 는 있음)
+- 정산 응답 실데이터 확인: 수수료 금액 부호(차감 표기)는 절댓값으로 비교하도록 구현함
 - Claude 호출: 실제 API 키로 품질 평가(eval) 후 프롬프트 조정. 서버측 refusal fallback 은 규칙 기반 폴백으로 대체

@@ -5,7 +5,7 @@ import { Badge, Btn, Filter, Msg, Page, Table, useApi } from "@/components/ui";
 import { api, dt, getRole, won } from "@/lib/api";
 
 const STATES = ["PAID", "STOCK_CHECKED", "AWAITING_APPROVAL", "PURCHASE_REQUESTED", "SUPPLIER_CONFIRMED", "SHIPPED",
-  "TRACKING_REGISTERED", "DELIVERED", "ON_HOLD", "CANCEL_REQUESTED", "CANCELLED", "RETURN_REQUESTED", "RETURNED", "FAILED"];
+  "TRACKING_REGISTERED", "DELIVERED", "ON_HOLD", "CANCEL_REQUESTED", "CANCELLED", "RETURN_REQUESTED", "RETURNED", "EXCHANGE_REQUESTED", "FAILED"];
 
 export default function Orders() {
   const [status, setStatus] = useState("");
@@ -13,6 +13,7 @@ export default function Orders() {
   const [detail, setDetail] = useState<any>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [ex, setEx] = useState<Record<number, { carrier: string; no: string }>>({});
   async function act(fn: () => Promise<any>, ok: string) {
     try { const r = await fn(); setMsg(`${ok} ${r ? JSON.stringify(r).slice(0, 200) : ""}`); setErr(null); } catch (e) { setErr((e as Error).message); }
     reload();
@@ -31,7 +32,7 @@ export default function Orders() {
         { key: "option_text", label: "옵션" }, { key: "quantity", label: "수량" },
         { key: "total_amount", label: "결제액", render: (r) => won(r.total_amount) },
         { key: "buyer", label: "수령인", render: (r) => <span className="text-xs">{r.buyer?.name} / {r.buyer?.phone}</span> },
-        { key: "status", label: "상태", render: (r) => <div><Badge value={r.status} />{r.hold_reason && <div className="max-w-xs text-xs text-orange-700">{r.hold_reason}</div>}</div> },
+        { key: "status", label: "상태", render: (r) => <div><Badge value={r.status} />{r.claim_status && <div className="text-xs text-slate-500">{r.claim_status}</div>}{r.hold_reason && <div className="max-w-xs text-xs text-orange-700">{r.hold_reason}</div>}</div> },
         { key: "created_at", label: "수집", render: (r) => dt(r.created_at) },
         { key: "act", label: "", render: (r) => (
           <div className="flex flex-col gap-1">
@@ -40,6 +41,14 @@ export default function Orders() {
             {["PAID", "STOCK_CHECKED", "AWAITING_APPROVAL", "ON_HOLD", "SUPPLIER_CONFIRMED", "CANCEL_REQUESTED"].includes(r.status) &&
               <Btn tone="danger" onClick={() => act(() => api(`/orders/${r.id}/cancel`, { method: "POST" }), "취소 처리:")}>취소</Btn>}
             {r.status === "RETURN_REQUESTED" && <Btn onClick={() => act(() => api(`/orders/${r.id}/approve-return`, { method: "POST" }), "반품 승인")}>반품 승인</Btn>}
+            {r.status === "EXCHANGE_REQUESTED" && r.claim_status !== "EXCHANGE_COLLECTED" &&
+              <Btn testId={`ex-collect-${r.id}`} onClick={() => act(() => api(`/orders/${r.id}/exchange/collect-approve`, { method: "POST" }), "교환 수거 완료")}>교환 수거 완료</Btn>}
+            {r.status === "EXCHANGE_REQUESTED" && r.claim_status === "EXCHANGE_COLLECTED" && (
+              <div className="flex flex-col gap-1">
+                <input placeholder="택배사" className="w-28 rounded border px-1 text-xs" value={ex[r.id]?.carrier || ""} onChange={(e) => setEx({ ...ex, [r.id]: { ...ex[r.id], carrier: e.target.value } })} />
+                <input placeholder="재배송 송장" className="w-28 rounded border px-1 text-xs" value={ex[r.id]?.no || ""} onChange={(e) => setEx({ ...ex, [r.id]: { ...ex[r.id], no: e.target.value } })} />
+                <Btn onClick={() => act(() => api(`/orders/${r.id}/exchange/redispatch`, { method: "POST", body: { carrier_code: ex[r.id]?.carrier, tracking_no: ex[r.id]?.no } }), "교환 재배송 등록")}>재배송 등록</Btn>
+              </div>)}
           </div>) },
       ]} />
       {detail && (

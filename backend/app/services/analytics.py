@@ -7,8 +7,8 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models import (
-    Alert, DeadLetter, Order, OrderStatus as S, Product, ProductStatus, PurchaseOrder, PurchaseStatus, Supplier,
-    SupplierProduct, utcnow,
+    Alert, DeadLetter, Order, OrderStatus as S, Product, ProductStatus, PurchaseOrder, PurchaseStatus, Settlement,
+    Supplier, SupplierProduct, utcnow,
 )
 from app.services import pricing
 from app.services.listing import listed_today_count
@@ -43,7 +43,10 @@ def revenue(db: Session, days: int = 30) -> dict:
     since = utcnow() - timedelta(days=days)
     rows = db.query(Order).filter(Order.created_at >= since, Order.status.notin_(EXCLUDED)).all()
     sales = sum((o.total_amount for o in rows), Decimal(0))
-    fees = (sales * cfg.total_fee_rate).quantize(Decimal("1"))
+    settled = {st.order_id: st for st in db.query(Settlement).filter(
+        Settlement.order_id.in_([o.id for o in rows] or [-1]), Settlement.settle_type == "NORMAL_SETTLE_ORIGINAL")}
+    fees = sum(((settled[o.id].commission_amount if o.id in settled else
+                 (o.total_amount * cfg.total_fee_rate).quantize(Decimal("1"))) for o in rows), Decimal(0))
     ads = (sales * cfg.ad_cost_rate).quantize(Decimal("1")) + cfg.ad_cost_per_order * len(rows)
     po_rows = (db.query(PurchaseOrder).join(Order)
                .filter(Order.created_at >= since, Order.status.notin_(EXCLUDED), PurchaseOrder.status != PurchaseStatus.CANCELLED))
@@ -59,5 +62,7 @@ def revenue(db: Session, days: int = 30) -> dict:
         "supplier_cost": str(cost), "other_cost": str(other), "estimated_profit": str(profit),
         "margin_rate": str((profit / sales).quantize(Decimal("0.0001"))) if sales else "0",
         "by_day": {k: str(v) for k, v in sorted(by_day.items())},
-        "note": "추정치. 실제 정산은 네이버 정산 내역으로 대사 필요",
+        "settled_orders": len(settled),
+        "fee_basis": f"정산 완료 {len(settled)}건은 네이버 실제 수수료, 나머지 {len(rows) - len(settled)}건은 설정 수수료율 추정",
+        "note": "광고비·기타 변동비는 설정값 기준 추정입니다",
     }

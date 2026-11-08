@@ -32,6 +32,11 @@ def _404(obj, what="대상"):
     return obj
 
 
+class TrackingIn(BaseModel):
+    carrier_code: str
+    tracking_no: str = Field(min_length=6, max_length=40)
+
+
 # ------------------------------------------------------------------ 인증/사용자
 
 
@@ -40,12 +45,56 @@ class LoginIn(BaseModel):
     password: str
 
 
+MAX_FAILED_LOGINS = 5
+LOCK_MINUTES = 15
+
+
 @router.post("/auth/login", tags=["auth"])
 def login(body: LoginIn, db: Session = Depends(get_db)):
+    from datetime import timedelta, timezone
+
+    from app.models import utcnow
+
     user = db.query(User).filter_by(email=body.email, active=True).one_or_none()
+    now = utcnow()
+    if user is not None and user.locked_until is not None:
+        locked = user.locked_until if user.locked_until.tzinfo else user.locked_until.replace(tzinfo=timezone.utc)
+        if locked > now:
+            raise HTTPException(429, f"로그인 시도 초과로 잠김. {int((locked - now).total_seconds() // 60) + 1}분 후 다시 시도하세요")
     if user is None or not verify_password(body.password, user.password_hash):
+        if user is not None:
+            user.failed_logins = (user.failed_logins or 0) + 1
+            if user.failed_logins >= MAX_FAILED_LOGINS:
+                user.locked_until, user.failed_logins = now + timedelta(minutes=LOCK_MINUTES), 0
+                audit(db, user.email, "auth.locked", "user", user.email)
+            db.commit()
         raise HTTPException(401, "이메일 또는 비밀번호가 올바르지 않습니다")
-    return {"access_token": create_access_token(user.email, user.role), "role": user.role.value, "email": user.email}
+    user.failed_logins, user.locked_until = 0, None
+    db.commit()
+    return {"access_token": create_access_token(user.email, user.role), "role": user.role.value, "email": user.email,
+            "password_change_recommended": user.password_changed_at is None}
+
+
+class PasswordIn(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=10, max_length=128)
+
+
+@router.post("/auth/password", tags=["auth"])
+def change_password(body: PasswordIn, db: Session = Depends(get_db), p: Principal = Depends(viewer)):
+    from app.models import utcnow
+
+    user = db.query(User).filter_by(email=p.email).one_or_none()
+    if user is None:
+        raise HTTPException(403, "서비스 토큰으로는 비밀번호를 변경할 수 없습니다")
+    if not verify_password(body.current_password, user.password_hash):
+        raise HTTPException(400, "현재 비밀번호가 올바르지 않습니다")
+    if body.current_password == body.new_password:
+        raise HTTPException(400, "새 비밀번호가 기존과 같습니다")
+    user.password_hash, user.password_changed_at = hash_password(body.new_password), utcnow()
+    audit(db, p.email, "auth.password_change", "user", p.email)
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/auth/me", tags=["auth"])
@@ -359,6 +408,28 @@ def cancel_order(oid: int, db: Session = Depends(get_db), p: Principal = Depends
     return {"result": result, "order": order_dict(o)}
 
 
+@router.post("/orders/{oid}/exchange/collect-approve", tags=["orders"])
+def exchange_collect(oid: int, db: Session = Depends(get_db), p: Principal = Depends(operator)):
+    o = _404(db.get(Order, oid), "주문")
+    try:
+        fulfillment.approve_exchange_collect(db, get_naver_client(db), o, p.email)
+    except ValueError as e:
+        raise HTTPException(409, str(e)) from e
+    db.commit()
+    return order_dict(o)
+
+
+@router.post("/orders/{oid}/exchange/redispatch", tags=["orders"])
+def exchange_redispatch(oid: int, body: TrackingIn, db: Session = Depends(get_db), p: Principal = Depends(operator)):
+    o = _404(db.get(Order, oid), "주문")
+    try:
+        fulfillment.redispatch_exchange(db, get_naver_client(db), o, body.carrier_code, body.tracking_no, p.email)
+    except (ValueError, InvalidTransition) as e:
+        raise HTTPException(409, str(e)) from e
+    db.commit()
+    return order_dict(o)
+
+
 @router.post("/orders/{oid}/approve-return", tags=["orders"])
 def approve_return(oid: int, db: Session = Depends(get_db), p: Principal = Depends(operator)):
     o = _404(db.get(Order, oid), "주문")
@@ -404,11 +475,6 @@ def approve_purchase(poid: int, body: PurchaseApproveIn | None = None, db: Sessi
     return {"result": result, "purchase": _po_dict(po)}
 
 
-class TrackingIn(BaseModel):
-    carrier_code: str
-    tracking_no: str = Field(min_length=6, max_length=40)
-
-
 @router.post("/purchases/{poid}/tracking", tags=["shipping"])
 def add_tracking(poid: int, body: TrackingIn, db: Session = Depends(get_db), p: Principal = Depends(operator)):
     po = _404(db.get(PurchaseOrder, poid), "발주")
@@ -424,6 +490,27 @@ def shipments(db: Session = Depends(get_db), p: Principal = Depends(viewer)):
     states = [OrderStatus.SUPPLIER_CONFIRMED, OrderStatus.SHIPPED, OrderStatus.TRACKING_REGISTERED, OrderStatus.DELIVERED]
     rows = (db.query(PurchaseOrder).join(Order).filter(Order.status.in_(states)).order_by(PurchaseOrder.id.desc()).limit(500))
     return [_po_dict(po) for po in rows]
+
+
+@router.get("/settlements", tags=["analytics"])
+def list_settlements(mismatch_only: bool = False, db: Session = Depends(get_db), p: Principal = Depends(viewer)):
+    from app.models import Settlement
+
+    q = db.query(Settlement).order_by(Settlement.id.desc())
+    if mismatch_only:
+        q = q.filter(Settlement.mismatch.is_(True))
+    return [to_dict(x, exclude={"raw"}) for x in q.limit(500)]
+
+
+@router.get("/categories", tags=["products"])
+def search_categories(q: str = "", limit: int = Query(30, le=200), db: Session = Depends(get_db),
+                      p: Principal = Depends(viewer)):
+    from app.services.categories import load_category_map
+
+    cats = load_category_map(db)
+    words = q.split()
+    hits = [{"id": cid, "whole_name": name} for name, cid in cats.items() if all(w in name for w in words)]
+    return {"total": len(cats), "items": hits[:limit]}
 
 
 # ------------------------------------------------------------------ 오류/알림/로그
@@ -502,8 +589,21 @@ def connections(p: Principal = Depends(viewer)):
                    "allow_pii_transfer": s.allow_pii_transfer, "allow_naver_order_actions": s.allow_naver_order_actions},
         "claude": {"api_key_set": bool(s.anthropic_api_key), "model": s.claude_model, "enabled": s.ai_enabled},
         "monitoring": {"sentry": bool(s.sentry_dsn), "alert_webhook": bool(s.alert_webhook_url)},
+        "categories": _category_status(),
         "note": "비밀값은 환경변수/Secret Manager 로만 설정합니다 (화면에서 입력/표시하지 않음).",
     }
+
+
+def _category_status() -> dict:
+    from sqlalchemy import func
+
+    from app.db import SessionLocal
+    from app.models import NaverCategory
+
+    with SessionLocal() as db:
+        n, last = db.query(func.count(NaverCategory.id), func.max(NaverCategory.synced_at)).one()
+    return {"synced_count": n, "last_synced_at": last.isoformat() if last else None,
+            "source": "네이버 동기화" if n else "Mock 카테고리 사전 (동기화 전)"}
 
 
 @router.post("/connections/naver/test", tags=["connections"])

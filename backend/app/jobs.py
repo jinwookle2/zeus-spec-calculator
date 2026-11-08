@@ -7,7 +7,7 @@ from app.db import session_scope
 from app.logging_setup import log
 from app.models import JobRun, utcnow
 from app.naver.client import get_naver_client
-from app.services import fulfillment, listing, sourcing
+from app.services import categories, fulfillment, listing, settlement, sourcing
 
 JOBS: dict[str, Callable] = {
     "source_products": lambda db, nv: {"suppliers": sourcing.sync_all_suppliers(db)},
@@ -18,6 +18,8 @@ JOBS: dict[str, Callable] = {
     "process_orders": lambda db, nv: fulfillment.process_paid_orders(db, nv),
     "retry_purchases": lambda db, nv: fulfillment.retry_pending_purchases(db, nv),
     "poll_shipments": lambda db, nv: fulfillment.poll_shipments(db, nv),
+    "sync_categories": lambda db, nv: categories.sync_categories(db, nv),
+    "reconcile_settlements": lambda db, nv: settlement.reconcile_settlements(db, nv),
 }
 
 PIPELINE = ["source_products", "process_candidates", "publish_listings", "sync_inventory",
@@ -63,7 +65,8 @@ INTERVAL_KEYS = {
     "process_orders": "order_poll_interval_minutes",
     "retry_purchases": "order_poll_interval_minutes",
 }
-FIXED_INTERVALS = {"sync_inventory": 30, "poll_shipments": 30}
+FIXED_INTERVALS = {"sync_inventory": 30, "poll_shipments": 30, "sync_categories": 1440, "reconcile_settlements": 360}
+SCHEDULED = PIPELINE + ["sync_categories", "reconcile_settlements"]
 
 
 def due_jobs() -> list[str]:
@@ -78,7 +81,7 @@ def due_jobs() -> list[str]:
         last = dict(db.query(JobRun.job, func.max(JobRun.started_at)).group_by(JobRun.job).all())
         now = utcnow()
         due = []
-        for name in PIPELINE:
+        for name in SCHEDULED:
             minutes = int(s.get(INTERVAL_KEYS.get(name, ""), FIXED_INTERVALS.get(name, 60)) or 60)
             prev = last.get(name)
             if prev is not None and prev.tzinfo is None:

@@ -28,6 +28,15 @@ test("관리자: 로그인 → 파이프라인 → Mock 주문 → 발주 → �
   await expect(page.getByTestId("shipments-table").getByText("TRACKING_REGISTERED")).toBeVisible();
   await expect(page.getByTestId("shipments-table").getByText(/CJ → CJGLS/)).toBeVisible();
 
+  await page.getByRole("link", { name: "매출 및 수익 분석" }).click();
+  await page.getByTestId("reconcile").click();
+  await expect(page.getByText(/정산 대사:.*"matched":1/)).toBeVisible();
+  await expect(page.getByTestId("settlements-table").getByText("NORMAL_SETTLE_ORIGINAL")).toBeVisible();
+
+  await page.getByRole("link", { name: "API 연결 설정" }).click();
+  await page.getByTestId("sync-categories").click();
+  await expect(page.getByText(/"created":\d+/)).toBeVisible();
+
   await page.getByRole("link", { name: "상품 등록 대기" }).click();
   await expect(page.getByTestId("queue-table").getByText(/BRAND_NOT_AUTHORIZED/).first()).toBeVisible();
 

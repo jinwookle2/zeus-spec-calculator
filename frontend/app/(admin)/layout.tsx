@@ -52,7 +52,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </span>
           </div>
           <div className="flex items-center gap-3 text-slate-600">
-            <span>{me?.email} ({me?.role})</span>
+            <Link href="/account" className="underline">{me?.email} ({me?.role})</Link>
             <button className="underline" onClick={() => { localStorage.clear(); window.location.href = "/login"; }}>로그아웃</button>
           </div>
         </header>

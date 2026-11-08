@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import threading
+from decimal import Decimal
 import time
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
@@ -41,6 +42,9 @@ EP = {
     # 참고(미사용): 옵션 재고/가격 변경 PUT /v1/products/origin-products/{no}/option-stock
     #   body: productSalePrice{salePrice}, optionInfo{optionCombinations[{id, stockQuantity, ...}]}
     "option_stock": ("PUT", "/v1/products/origin-products/{no}/option-stock"),
+    "exchange_collect": ("POST", "/v1/pay-order/seller/product-orders/{id}/claim/exchange/collect/approve"),
+    "exchange_dispatch": ("POST", "/v1/pay-order/seller/product-orders/{id}/claim/exchange/dispatch"),
+    "settle_case": ("GET", "/v1/pay-settle/settle/case"),
 }
 
 
@@ -109,6 +113,15 @@ class NaverClient(ABC):
     def dispatch(self, product_order_id: str, carrier: str, tracking_no: str) -> dict: ...
     @abstractmethod
     def approve_claim(self, product_order_id: str, claim: str) -> dict: ...
+    @abstractmethod
+    def check_restricted_tags(self, tags: list[str]) -> set[str]: ...
+    @abstractmethod
+    def approve_exchange_collect(self, product_order_id: str) -> dict: ...
+    @abstractmethod
+    def redispatch_exchange(self, product_order_id: str, carrier: str, tracking_no: str) -> dict: ...
+    @abstractmethod
+    def get_settlements(self, search_date: str, page: int = 1) -> tuple[list[dict], int]:
+        """건별 정산 내역 (정산 기준일). 반환: (elements, totalPages)"""
 
     # 공통 헬퍼: 가격/재고 변경은 원상품 조회 → 수정 (공식 엔드포인트만 사용)
     def update_price_stock(self, origin_no: str, sale_price: int | None = None, stock: int | None = None) -> dict:
@@ -305,6 +318,30 @@ class LiveNaverClient(NaverClient):
                               {"productOrderId": product_order_id}, entity_id=product_order_id,
                               path_args={"id": product_order_id})
 
+    def check_restricted_tags(self, tags: list[str]) -> set[str]:
+        if not tags:
+            return set()
+        body = self._request("restricted_tags", params=[("tags", t) for t in tags]) or []
+        if not isinstance(body, list):
+            raise NaverApiError(f"restricted_tags 응답 형식 오류: {str(body)[:200]}")
+        return {x["tag"] for x in body if x.get("restricted")}
+
+    def approve_exchange_collect(self, product_order_id: str) -> dict:
+        return self._mutation("exchange_collect", self.s.allow_naver_order_actions, "ALLOW_NAVER_ORDER_ACTIONS",
+                              {"productOrderId": product_order_id}, entity_id=product_order_id,
+                              path_args={"id": product_order_id})
+
+    def redispatch_exchange(self, product_order_id: str, carrier: str, tracking_no: str) -> dict:
+        body = {"reDeliveryMethod": "DELIVERY", "reDeliveryCompany": carrier, "reDeliveryTrackingNumber": tracking_no}
+        return self._mutation("exchange_dispatch", self.s.allow_naver_order_actions, "ALLOW_NAVER_ORDER_ACTIONS", body,
+                              entity_id=product_order_id, path_args={"id": product_order_id}, json=body)
+
+    def get_settlements(self, search_date: str, page: int = 1) -> tuple[list[dict], int]:
+        body = self._request("settle_case", params={
+            "searchDate": search_date, "periodType": "SETTLE_CASEBYCASE_SETTLE_BASIS_DATE",
+            "pageNumber": page, "pageSize": 1000}) or {}
+        return body.get("elements", []), int((body.get("pagination") or {}).get("totalPages") or 1)
+
 
 def _safe_json(resp: httpx.Response) -> Any:
     try:
@@ -382,6 +419,44 @@ class MockNaverClient(NaverClient):
         _log_call(self.db, f"{claim.lower()}_approve", {"productOrderId": product_order_id}, {"ok": True}, True,
                   entity_id=product_order_id)
         return {"ok": True}
+
+    restricted_tags: set[str] = {"최저가", "무료배송", "특가", "정품", "명품", "나이키", "할인"}
+    actual_fee_rates = (Decimal("0.0363"), Decimal("0.02"))  # Mock 실제 수수료 (주문관리 + 판매연동)
+
+    def check_restricted_tags(self, tags: list[str]) -> set[str]:
+        return {t for t in tags if t in self.restricted_tags}
+
+    def approve_exchange_collect(self, product_order_id: str) -> dict:
+        _log_call(self.db, "exchange_collect", {"productOrderId": product_order_id}, {"ok": True}, True,
+                  entity_id=product_order_id)
+        return {"ok": True}
+
+    def redispatch_exchange(self, product_order_id: str, carrier: str, tracking_no: str) -> dict:
+        _log_call(self.db, "exchange_dispatch", {"productOrderId": product_order_id, "reDeliveryCompany": carrier,
+                                                 "reDeliveryTrackingNumber": tracking_no}, {"ok": True}, True,
+                  entity_id=product_order_id)
+        return {"ok": True}
+
+    def get_settlements(self, search_date: str, page: int = 1) -> tuple[list[dict], int]:
+        """배송 이후 단계의 Mock 주문에 대해 변경일 = 정산 기준일 로 정산 내역을 만든다."""
+        assert self.db is not None
+        out = []
+        for r in self.db.query(MockNaverOrder).filter(
+                MockNaverOrder.status.in_(["DELIVERING", "DELIVERED", "PURCHASE_DECIDED"])).all():
+            if _aware(r.changed_at).date().isoformat() != search_date:
+                continue
+            po = r.payload["productOrder"]
+            amount = Decimal(str(po["totalPaymentAmount"]))
+            pay_fee = (amount * self.actual_fee_rates[0]).quantize(Decimal("1"))
+            link_fee = (amount * self.actual_fee_rates[1]).quantize(Decimal("1"))
+            out.append({
+                "settleBasisDate": search_date, "settleExpectDate": search_date, "orderId": r.order_id,
+                "productOrderId": r.product_order_id, "productOrderType": "PROD_ORDER", "settleType": "NORMAL_SETTLE_ORIGINAL",
+                "paySettleAmount": int(amount), "totalPayCommissionAmount": -int(pay_fee),
+                "freeInstallmentCommissionAmount": 0, "sellingInterlockCommissionAmount": -int(link_fee),
+                "benefitSettleAmount": 0, "settleExpectAmount": int(amount - pay_fee - link_fee),
+            })
+        return out, 1
 
 
 def _aware(dt: datetime) -> datetime:

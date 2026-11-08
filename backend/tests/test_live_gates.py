@@ -18,6 +18,9 @@ def _live(db, **flags):
         calls.append(f"{req.method} {req.url.path}")
         if req.url.path.endswith("/oauth2/token"):
             return httpx.Response(200, json={"access_token": "AT", "expires_in": 10800})
+        if req.url.path.endswith("/v2/tags/restricted-tags"):
+            tags = req.url.params.get_list("tags")
+            return httpx.Response(200, json=[{"tag": t, "restricted": t == "텀블러"} for t in tags])
         return httpx.Response(200, json={"originProductNo": 1})
 
     http = httpx.Client(base_url="https://api.commerce.naver.com/external", transport=httpx.MockTransport(handler))
@@ -38,6 +41,10 @@ def test_publish_in_live_mode_without_gate_is_dry_run(db):
     assert not any("/v2/products" in c for c in calls)   # 실제 등록 호출 없음
     p = db.query(Product).filter_by(status=ProductStatus.LISTED).first()
     assert p.dry_run_listed and p.naver_origin_product_no.startswith("DRYRUN-")
+    # 제한 태그 조회(읽기)는 실제 호출되고, 제한 태그는 등록 전에 제거된다
+    assert any("/v2/tags/restricted-tags" in c for c in calls)
+    t = db.query(Product).filter_by(listing_key="MOCKA:MA-1001").one()
+    assert "텀블러" not in t.tags and any("RESTRICTED_TAGS_REMOVED" in w for w in t.warnings)
 
 
 def test_live_mode_requires_origin_code_mapping(db):

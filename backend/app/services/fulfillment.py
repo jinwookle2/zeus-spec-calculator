@@ -390,3 +390,29 @@ def handle_cancel(db: Session, naver: NaverClient, order: Order, actor: str) -> 
 def approve_return(db: Session, naver: NaverClient, order: Order, actor: str) -> None:
     naver.approve_claim(order.naver_product_order_id, "RETURN")
     transition(db, order, S.RETURNED, actor, "반품 승인")
+
+
+def approve_exchange_collect(db: Session, naver: NaverClient, order: Order, actor: str) -> None:
+    """교환 수거 완료 처리 (네이버). 재배송 상품은 공급사에 별도 발주/요청 후 redispatch_exchange 로 송장 등록."""
+    if order.status != S.EXCHANGE_REQUESTED:
+        raise ValueError(f"교환 요청 상태가 아닙니다: {order.status.value}")
+    if order.claim_status == "EXCHANGE_COLLECTED":
+        return
+    naver.approve_exchange_collect(order.naver_product_order_id)
+    order.claim_status = "EXCHANGE_COLLECTED"
+    db.add(OrderEvent(order_id=order.id, from_status=order.status.value, to_status=order.status.value, actor=actor,
+                      reason="교환 수거 완료 (네이버 처리)"))
+
+
+def redispatch_exchange(db: Session, naver: NaverClient, order: Order, carrier_code: str, tracking_no: str,
+                        actor: str) -> bool:
+    if order.status != S.EXCHANGE_REQUESTED or order.claim_status != "EXCHANGE_COLLECTED":
+        raise ValueError("교환 수거 완료 후에만 재배송 송장을 등록할 수 있습니다")
+    s = get_all_settings(db)
+    naver_code = map_carrier(carrier_code, s.get("carrier_code_map"))
+    if not naver_code:
+        raise ValueError(f"택배사 코드 매핑 없음: '{carrier_code}'")
+    naver.redispatch_exchange(order.naver_product_order_id, naver_code, tracking_no)
+    order.claim_status = "EXCHANGE_REDISPATCHED"
+    transition(db, order, S.TRACKING_REGISTERED, actor, f"교환 재배송 {naver_code} {tracking_no}")
+    return True

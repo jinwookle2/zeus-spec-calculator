@@ -40,6 +40,13 @@ BACKEND_URL=http://localhost:8000 npm run dev      # http://localhost:3000
 ```
 로컬 기본 관리자는 `admin@example.com` / `admin1234!` 입니다. 운영에서는 반드시 `.env` 로 바꾸세요.
 
+## DB 마이그레이션
+API 가 시작될 때 자동으로 적용됩니다(`DB_AUTO_MIGRATE=true`). 직접 실행하려면:
+```bash
+cd backend && alembic upgrade head
+alembic revision --autogenerate -m "설명"   # 모델 변경 후
+```
+
 ## 테스트
 ```bash
 cd backend && pytest                                         # SQLite

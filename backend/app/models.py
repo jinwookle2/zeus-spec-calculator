@@ -42,6 +42,9 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     role: Mapped[Role] = mapped_column(Enum(Role, native_enum=False, length=20), default=Role.VIEWER)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    failed_logins: Mapped[int] = mapped_column(Integer, default=0)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    password_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -208,6 +211,7 @@ class Order(Base):
     address_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
     hold_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     claim_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    claim_status: Mapped[str | None] = mapped_column(String(40), nullable=True)  # 예: EXCHANGE_COLLECTED
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
@@ -327,3 +331,38 @@ class MockNaverOrder(Base):
     status: Mapped[str] = mapped_column(String(30), default="PAYED")
     payload: Mapped[dict] = mapped_column(JSON, default=dict)
     changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class NaverCategory(Base):
+    """네이버 카테고리 사본 (GET /v1/categories 동기화)."""
+
+    __tablename__ = "naver_categories"
+    id: Mapped[str] = mapped_column(String(20), primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    whole_name: Mapped[str] = mapped_column(String(500), index=True)
+    last: Mapped[bool] = mapped_column(Boolean, default=False)
+    synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Settlement(Base):
+    """네이버 건별 정산 내역 (GET /v1/pay-settle/settle/case) + 수수료 대사 결과."""
+
+    __tablename__ = "settlements"
+    __table_args__ = (UniqueConstraint("product_order_id", "settle_type", name="uq_settlement_po_type"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_order_id: Mapped[str] = mapped_column(String(50), index=True)
+    naver_order_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    order_id: Mapped[int | None] = mapped_column(ForeignKey("orders.id"), nullable=True, index=True)
+    settle_type: Mapped[str] = mapped_column(String(40))
+    pay_settle_amount: Mapped[Decimal] = mapped_column(Money, default=0)      # 정산 대상 결제금액
+    commission_amount: Mapped[Decimal] = mapped_column(Money, default=0)      # 결제+연동+무이자 수수료 합
+    benefit_settle_amount: Mapped[Decimal] = mapped_column(Money, default=0)
+    settle_expect_amount: Mapped[Decimal] = mapped_column(Money, default=0)   # 정산 예정 금액
+    settle_basis_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    settle_expect_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    settle_complete_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    expected_commission: Mapped[Decimal | None] = mapped_column(Money, nullable=True)  # 설정 수수료율 기준 추정
+    commission_diff: Mapped[Decimal | None] = mapped_column(Money, nullable=True)      # 실제 - 추정
+    mismatch: Mapped[bool] = mapped_column(Boolean, default=False)
+    raw: Mapped[dict] = mapped_column(JSON, default=dict)
+    synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

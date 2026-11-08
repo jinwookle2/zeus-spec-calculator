@@ -12,6 +12,8 @@ export default function ListingQueue() {
   const [prices, setPrices] = useState<Record<number, string>>({});
   const [preview, setPreview] = useState<any>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [catQ, setCatQ] = useState("");
+  const [catHits, setCatHits] = useState<any[]>([]);
   const [err, setErr] = useState<string | null>(null);
   async function act(fn: () => Promise<unknown>, ok: string) {
     try { await fn(); setMsg(ok); setErr(null); } catch (e) { setErr((e as Error).message); setMsg(null); }
@@ -52,6 +54,17 @@ export default function ListingQueue() {
         <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/40 p-4" onClick={() => setPreview(null)}>
           <div className="max-h-[90vh] w-full max-w-3xl overflow-auto rounded bg-white p-4" onClick={(e) => e.stopPropagation()}>
             <div className="mb-2 flex justify-between"><h3 className="font-semibold">{preview.title}</h3><Btn tone="ghost" onClick={() => setPreview(null)}>닫기</Btn></div>
+            <h4 className="mt-2 text-sm font-semibold">카테고리: {preview.category_name || "미지정"} ({preview.category_id || "-"})</h4>
+            {preview.status !== "APPROVED" && preview.status !== "LISTED" && (
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                <input placeholder="카테고리 검색 (예: 텀블러)" className="rounded border px-2 py-1" value={catQ} onChange={(e) => setCatQ(e.target.value)} />
+                <Btn tone="ghost" onClick={async () => setCatHits((await api(`/categories?q=${encodeURIComponent(catQ)}`)).items)}>검색</Btn>
+                {catHits.map((c) => (
+                  <button key={c.id} className="rounded bg-slate-100 px-2 py-0.5 hover:bg-slate-200" onClick={async () => {
+                    await act(() => api(`/products/${preview.id}`, { method: "PATCH", body: { category_id: c.id, category_name: c.whole_name } }), "카테고리 변경");
+                    setPreview(await api(`/products/${preview.id}`)); setCatHits([]);
+                  }}>{c.whole_name}</button>))}
+              </div>)}
             <h4 className="mt-2 text-sm font-semibold">상세페이지 미리보기</h4>
             <iframe title="detail" sandbox="" className="h-96 w-full rounded border" srcDoc={preview.detail_html} />
             <h4 className="mt-3 text-sm font-semibold">가격 구성</h4>

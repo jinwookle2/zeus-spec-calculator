@@ -10,7 +10,7 @@ const Row = ({ k, v }: { k: string; v: unknown }) => (
 );
 
 export default function Connections() {
-  const { data } = useApi("/connections");
+  const { data, reload } = useApi("/connections");
   const [msg, setMsg] = useState<string | null>(null);
   return (
     <Page title="API 연결 설정" desc={data?.note} actions={<Btn onClick={async () => setMsg(JSON.stringify(await api("/connections/naver/test", { method: "POST" })))}>네이버 연결 테스트</Btn>}>
@@ -21,6 +21,11 @@ export default function Connections() {
           <p className="mt-2 text-xs text-slate-500">ALLOW_PUBLIC_LISTING / ALLOW_REAL_PURCHASE / ALLOW_PII_TRANSFER / ALLOW_NAVER_ORDER_ACTIONS 를 true 로 바꾸기 전에는 실제 등록·결제·개인정보 전송·발송처리가 실행되지 않고 Dry-run 으로 기록됩니다.</p></Card>
         <Card title="Claude API">{data && Object.entries(data.claude).map(([k, v]) => <Row key={k} k={k} v={v} />)}</Card>
         <Card title="모니터링">{data && Object.entries(data.monitoring).map(([k, v]) => <Row key={k} k={k} v={v} />)}</Card>
+        <Card title="네이버 카테고리">
+          {data && Object.entries(data.categories).map(([k, v]) => <Row key={k} k={k} v={v ?? "-"} />)}
+          <div className="mt-2"><Btn testId="sync-categories" onClick={async () => { setMsg(JSON.stringify(await api("/jobs/sync_categories/run", { method: "POST" }))); reload(); }}>카테고리 동기화</Btn></div>
+          <p className="mt-1 text-xs text-slate-500">Mock 모드에서는 Mock 카테고리 사전을, LIVE 모드에서는 GET /v1/categories 결과를 저장합니다 (읽기 전용 호출).</p>
+        </Card>
       </div>
     </Page>
   );

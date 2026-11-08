@@ -6,6 +6,7 @@ os.environ.setdefault("DATABASE_URL", os.environ.get("TEST_DATABASE_URL", f"sqli
 os.environ["APP_ENV"] = "test"
 os.environ["NAVER_MODE"] = "mock"
 os.environ["CELERY_EAGER"] = "true"
+os.environ["DB_AUTO_MIGRATE"] = "false"
 os.environ["ANTHROPIC_API_KEY"] = ""
 os.environ["ALERT_WEBHOOK_URL"] = ""
 os.environ["LOG_JSON"] = "false"

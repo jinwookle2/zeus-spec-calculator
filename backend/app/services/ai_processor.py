@@ -94,15 +94,32 @@ def clean_title(name: str, brand: str | None = None, max_len: int = 100) -> str:
     return title[:max_len].strip()
 
 
-def recommend_category(sp: SupplierProduct, categories: dict[str, str] = MOCK_CATEGORIES) -> tuple[str | None, str | None]:
+def _category_scores(sp: SupplierProduct, categories: dict[str, str]) -> list[tuple[int, str]]:
     hint_tokens = set(re.split(r"[>/\s]+", (sp.category_hint or "") + " " + sp.name)) - {""}
-    best, best_score = None, 0
+    scored = []
     for name in categories:
+        parts = [p for p in re.split(r"[>/]+", name) if p]
         leaf_tokens = set(re.split(r"[>/\s]+", name)) - {""}
-        score = len(hint_tokens & leaf_tokens) * 2 + sum(1 for t in leaf_tokens if t in sp.name)
-        if score > best_score:
-            best, best_score = name, score
-    return (categories[best], best) if best else (None, None)
+        leaf = parts[-1] if parts else ""
+        score = (len(hint_tokens & leaf_tokens) * 2 + sum(1 for t in leaf_tokens if len(t) >= 2 and t in sp.name)
+                 + (3 if leaf and leaf in sp.name else 0))
+        if score > 0:
+            scored.append((score, name))
+    scored.sort(key=lambda x: (-x[0], len(x[1])))
+    return scored
+
+
+def candidate_categories(sp: SupplierProduct, categories: dict[str, str], k: int = 15) -> list[str]:
+    return [n for _, n in _category_scores(sp, categories)[:k]]
+
+
+def recommend_category(sp: SupplierProduct, categories: dict[str, str] | None = None) -> tuple[str | None, str | None]:
+    categories = categories or MOCK_CATEGORIES
+    scored = _category_scores(sp, categories)
+    if not scored:
+        return None, None
+    best = scored[0][1]
+    return categories[best], best
 
 
 def recommend_tags(title: str, category_name: str | None, limit: int = 10) -> list[str]:
@@ -182,9 +199,10 @@ def render_detail_html(sp: SupplierProduct, title: str, intro: str, options: lis
 class RuleBasedProcessor:
     source = "rule"
 
-    def process(self, sp: SupplierProduct, image_urls: list[str] | None = None) -> ProcessedContent:
+    def process(self, sp: SupplierProduct, image_urls: list[str] | None = None,
+                categories: dict[str, str] | None = None) -> ProcessedContent:
         title = clean_title(sp.name, sp.brand)
-        cat_id, cat_name = recommend_category(sp)
+        cat_id, cat_name = recommend_category(sp, categories)
         tags = recommend_tags(title, cat_name)
         options = normalize_options(sp.options)
         intro = f"{title} 상품입니다."
@@ -220,14 +238,17 @@ class ClaudeProcessor:
         self.model = model or get_settings().claude_model
         self.fallback = RuleBasedProcessor()
 
-    def process(self, sp: SupplierProduct, image_urls: list[str] | None = None) -> ProcessedContent:
-        base = self.fallback.process(sp, image_urls)
+    def process(self, sp: SupplierProduct, image_urls: list[str] | None = None,
+                categories: dict[str, str] | None = None) -> ProcessedContent:
+        categories = categories or MOCK_CATEGORIES
+        base = self.fallback.process(sp, image_urls, categories)
         facts = facts_text(sp)
+        candidates = candidate_categories(sp, categories) or list(categories)[:15]
         user = (
             f"[공급사 사실]\n상품명: {sp.name}\n브랜드: {sp.brand or '없음'}\n분류 힌트: {sp.category_hint or ''}\n"
             f"속성: { {k: v for k, v in (sp.attributes or {}).items() if k != 'notice'} }\n"
             f"설명: {sp.description or ''}\n옵션: {[o['label'] for o in base.options]}\n\n"
-            f"[카테고리 후보]\n" + "\n".join(MOCK_CATEGORIES)
+            f"[카테고리 후보]\n" + "\n".join(candidates)
         )
         try:
             resp = self.client.messages.parse(
@@ -242,11 +263,12 @@ class ClaudeProcessor:
             log.warning("ai.claude_failed", error=str(e), sku=sp.supplier_sku)
             base.warnings.append(f"AI_ERROR: {type(e).__name__} → 규칙 기반 결과 사용")
             return base
-        return merge_ai_output(base, out, sp, facts, image_urls)
+        return merge_ai_output(base, out, sp, facts, image_urls, {c: categories[c] for c in candidates})
 
 
 def merge_ai_output(base: ProcessedContent, out: ClaudeCopy, sp: SupplierProduct, facts: str,
-                    image_urls: list[str] | None) -> ProcessedContent:
+                    image_urls: list[str] | None, candidates: dict[str, str] | None = None) -> ProcessedContent:
+    candidates = candidates if candidates is not None else MOCK_CATEGORIES
     result = ProcessedContent(**{**base.__dict__, "warnings": list(base.warnings)})
     result.source = "claude"
     title = clean_title(out.title)
@@ -255,8 +277,10 @@ def merge_ai_output(base: ProcessedContent, out: ClaudeCopy, sp: SupplierProduct
         result.warnings.append(f"AI_TITLE_REJECTED: {v}")
     else:
         result.title = title
-    if out.category_name in MOCK_CATEGORIES:
-        result.category_name, result.category_id = out.category_name, MOCK_CATEGORIES[out.category_name]
+    if out.category_name in candidates:
+        result.category_name, result.category_id = out.category_name, candidates[out.category_name]
+    else:
+        result.warnings.append(f"AI_CATEGORY_NOT_IN_CANDIDATES: {out.category_name} → 규칙 기반 추천 유지")
     tags = [re.sub(r"\s+", "", t) for t in out.tags if t.strip()]
     tags = [t for t in dict.fromkeys(tags) if not find_unsupported_claims(t, facts)][:10]
     if tags:

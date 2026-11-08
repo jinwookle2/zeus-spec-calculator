@@ -90,8 +90,15 @@ PAID → STOCK_CHECKED → PURCHASE_REQUESTED → SUPPLIER_CONFIRMED → SHIPPED
 - `alerts` 테이블과 `ALERT_WEBHOOK_URL`(warning 이상 푸시), `job_runs`(작업별 결과), `dead_letters`, `api_call_logs`, `audit_logs`, `order_events`.
 
 ## 6. DB 테이블
-`users`, `suppliers`, `supplier_products`, `products`, `orders`, `order_events`, `purchase_orders`, `app_settings`, `audit_logs`, `alerts`, `dead_letters`, `job_runs`, `api_call_logs`, `mock_naver_orders`(mock 전용).
-현재는 기동 시 `create_all` 로 생성한다. 운영 전환 시 Alembic 마이그레이션을 도입한다(implementation_plan 참고).
+`users`, `suppliers`, `supplier_products`, `products`, `orders`, `order_events`, `purchase_orders`, `app_settings`, `audit_logs`, `alerts`, `dead_letters`, `job_runs`, `api_call_logs`, `naver_categories`, `settlements`, `mock_naver_orders`(mock 전용).
+스키마는 Alembic(`backend/migrations`)으로 관리한다. API 가 시작될 때 `alembic upgrade head` 를 실행하고(`DB_AUTO_MIGRATE=true`), 워커와 비트는 API 가 healthy 가 된 뒤 시작한다. 모델을 바꾸면 `alembic revision --autogenerate` 로 새 revision 을 만든다. `tests/test_migrations.py` 가 revision 누락을 잡아낸다.
+
+## 8. 운영 보조 기능
+- **카테고리 동기화** (`sync_categories`, 하루 1회): `GET /v1/categories` 결과를 `naver_categories` 에 저장하고, 상품 가공 시 리프 카테고리 추천에 쓴다. Claude 에는 규칙 점수 상위 15개 후보만 주며, 후보 밖의 답은 버린다. 동기화 전에는 Mock 사전을 쓴다.
+- **제한 태그 필터**: 등록 직전에 `GET /v2/tags/restricted-tags` 로 조회(읽기 전용)해서 제한 태그를 빼고 경고로 남긴다.
+- **교환 처리**: 교환 요청이 오면 `EXCHANGE_REQUESTED` 와 알림 → 관리자가 '교환 수거 완료'(`claim/exchange/collect/approve`) → 재배송 송장 등록(`claim/exchange/dispatch`, 택배사 공식 코드 매핑) → `TRACKING_REGISTERED`. 공급사에 재배송을 요청하는 일은 수동이다.
+- **정산 대사** (`reconcile_settlements`, 6시간마다, 최근 7일): `GET /v1/pay-settle/settle/case` 로 건별 정산을 저장해 주문과 연결한다. 실제 수수료(결제+판매연동+무이자)와 설정 수수료율로 계산한 추정치의 차이가 max(100원, 0.5%) 를 넘으면 불일치로 표시하고 알림을 보낸다. 매출 분석은 정산된 주문에 한해 실제 수수료를 쓴다.
+- **관리자 보안**: 로그인 5회 실패 시 15분 잠금, 비밀번호 변경(10자 이상), 잠금과 변경은 감사 로그에 기록. 초기 비밀번호로 로그인하면 변경을 권고한다.
 
 ## 7. 네이버 Commerce API 근거
 

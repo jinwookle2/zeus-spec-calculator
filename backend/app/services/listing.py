@@ -16,6 +16,7 @@ from app.naver.payload import build_product_payload
 from app.services import pricing
 from app.services.ai_processor import get_processor
 from app.services.alerts import audit, raise_alert
+from app.services.categories import load_category_map
 from app.services.compliance import check_product
 from app.services.settings_service import get_all_settings
 
@@ -36,14 +37,16 @@ def _price_check(sp: SupplierProduct, s: dict, sale_price: Decimal | None = None
     return res, blocks
 
 
-def process_supplier_product(db: Session, sp: SupplierProduct, settings: dict | None = None) -> Product:
+def process_supplier_product(db: Session, sp: SupplierProduct, settings: dict | None = None,
+                             categories: dict[str, str] | None = None) -> Product:
     s = settings or get_all_settings(db)
+    categories = categories if categories is not None else load_category_map(db)
     supplier = sp.supplier
     product = db.query(Product).filter_by(supplier_product_id=sp.id).one_or_none()
     if product and product.status in (ProductStatus.LISTED, ProductStatus.APPROVED):
         return product  # 등록/승인된 상품은 재가공하지 않음 (가격/재고 동기화는 별도)
 
-    content = get_processor().process(sp)
+    content = get_processor().process(sp, categories=categories)
     comp = check_product(sp, supplier, s)
     price, price_blocks = _price_check(sp, s)
     blocks = comp.blocks + price_blocks
@@ -82,8 +85,9 @@ def process_new_candidates(db: Session, limit: int = 200) -> dict:
          .filter(Product.id.is_(None), SupplierProduct.status == SupplierProductStatus.ACTIVE, Supplier.active.is_(True))
          .limit(limit))
     counts: dict[str, int] = {}
+    categories = load_category_map(db)
     for sp in q.all():
-        p = process_supplier_product(db, sp, s)
+        p = process_supplier_product(db, sp, s, categories)
         counts[p.status.value] = counts.get(p.status.value, 0) + 1
     return counts
 
@@ -129,6 +133,14 @@ def publish_approved(db: Session, naver: NaverClient) -> dict:
             p.status, p.last_error = ProductStatus.FAILED, f"원산지 코드 매핑 필요: '{origin}' (설정 origin_area_codes)"
             summary["failed"] += 1
             continue
+        try:
+            restricted = naver.check_restricted_tags(list(p.tags))
+        except NaverApiError as e:
+            restricted = set()
+            p.warnings = list(p.warnings) + [f"RESTRICTED_TAG_CHECK_FAILED: {e}"]
+        if restricted:
+            p.tags = [t for t in p.tags if t not in restricted]
+            p.warnings = list(p.warnings) + [f"RESTRICTED_TAGS_REMOVED: {sorted(restricted)}"]
         try:
             images = naver.upload_images(p.supplier_product.images[:10])
             payload = build_product_payload(p, images, origin_codes.get(origin),

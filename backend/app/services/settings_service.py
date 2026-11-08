@@ -31,6 +31,9 @@ DEFAULTS: dict[str, Any] = {
     # 발주 안전장치
     "daily_purchase_amount_limit": 1000000,
     "max_purchase_retries": 3,
+    # 정산 대사
+    "settlement_lookback_days": 7,
+    "settlement_fee_tolerance_krw": 100,
     # 정책
     "banned_keywords": [
         "의약품", "전문의약품", "담배", "전자담배", "주류", "총포", "도검", "마약",
@@ -87,6 +90,8 @@ def _validate(values: dict[str, Any]) -> None:
         fees = values["platform_fee_rates"]
         if not isinstance(fees, dict) or any(not (0 <= float(v) < 1) for v in fees.values()):
             raise ValueError("platform_fee_rates 는 {이름: 0~1 비율} 형태여야 합니다")
+    if "settlement_lookback_days" in values and not (1 <= int(values["settlement_lookback_days"]) <= 90):
+        raise ValueError("settlement_lookback_days 는 1~90 이어야 합니다")
     for k in ("daily_listing_limit", "listing_interval_minutes", "daily_purchase_amount_limit", "min_profit_krw"):
         if k in values and int(values[k]) < 0:
             raise ValueError(f"{k} 는 음수가 될 수 없습니다")
