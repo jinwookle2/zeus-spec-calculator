@@ -17,7 +17,9 @@ from app.models import (
     PurchaseOrder, PurchaseStatus, Role, Supplier, SupplierProduct, User,
 )
 from app.naver.client import NaverApiError, get_naver_client
-from app.security import create_access_token, hash_password, verify_password
+from app.security import (
+    create_access_token, decrypt_pii, encrypt_pii, hash_password, new_totp_secret, totp_uri, verify_password, verify_totp,
+)
 from app.services import analytics, fulfillment, listing, mock_sim, pricing, sourcing
 from app.services.alerts import audit
 from app.services.order_state import InvalidTransition, transition
@@ -43,6 +45,7 @@ class TrackingIn(BaseModel):
 class LoginIn(BaseModel):
     email: EmailStr
     password: str
+    otp: str | None = None
 
 
 MAX_FAILED_LOGINS = 5
@@ -61,7 +64,11 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
         locked = user.locked_until if user.locked_until.tzinfo else user.locked_until.replace(tzinfo=timezone.utc)
         if locked > now:
             raise HTTPException(429, f"로그인 시도 초과로 잠김. {int((locked - now).total_seconds() // 60) + 1}분 후 다시 시도하세요")
-    if user is None or not verify_password(body.password, user.password_hash):
+    password_ok = user is not None and verify_password(body.password, user.password_hash)
+    if password_ok and user.totp_enabled and not body.otp:
+        raise HTTPException(401, "OTP_REQUIRED")  # 비밀번호는 맞음 → 2단계 코드 입력 요청 (실패 횟수 미증가)
+    otp_ok = (not password_ok) or (not user.totp_enabled) or verify_totp(decrypt_pii(user.totp_secret_enc) or "", body.otp)
+    if not password_ok or not otp_ok:
         if user is not None:
             user.failed_logins = (user.failed_logins or 0) + 1
             if user.failed_logins >= MAX_FAILED_LOGINS:
@@ -98,19 +105,103 @@ def change_password(body: PasswordIn, db: Session = Depends(get_db), p: Principa
 
 
 @router.get("/auth/me", tags=["auth"])
-def me(p: Principal = Depends(viewer)):
-    return {"email": p.email, "role": p.role.value}
+def me(db: Session = Depends(get_db), p: Principal = Depends(viewer)):
+    user = db.query(User).filter_by(email=p.email).one_or_none()
+    return {"email": p.email, "role": p.role.value, "totp_enabled": bool(user and user.totp_enabled)}
+
+
+class OtpIn(BaseModel):
+    code: str
+
+
+class OtpDisableIn(BaseModel):
+    password: str
+    code: str
+
+
+def _self_user(db: Session, p: Principal) -> User:
+    user = db.query(User).filter_by(email=p.email).one_or_none()
+    if user is None:
+        raise HTTPException(403, "사용자 계정만 사용할 수 있습니다")
+    return user
+
+
+@router.post("/auth/2fa/setup", tags=["auth"])
+def otp_setup(db: Session = Depends(get_db), p: Principal = Depends(viewer)):
+    """OTP 비밀키 발급(아직 비활성). 인증 앱에 등록 후 /auth/2fa/enable 로 코드 확인."""
+    user = _self_user(db, p)
+    if user.totp_enabled:
+        raise HTTPException(409, "이미 2단계 인증이 켜져 있습니다")
+    secret = new_totp_secret()
+    user.totp_secret_enc = encrypt_pii(secret)
+    db.commit()
+    return {"secret": secret, "otpauth_uri": totp_uri(secret, user.email)}
+
+
+@router.post("/auth/2fa/enable", tags=["auth"])
+def otp_enable(body: OtpIn, db: Session = Depends(get_db), p: Principal = Depends(viewer)):
+    user = _self_user(db, p)
+    secret = decrypt_pii(user.totp_secret_enc)
+    if not secret or not verify_totp(secret, body.code):
+        raise HTTPException(400, "OTP 코드가 올바르지 않습니다")
+    user.totp_enabled = True
+    audit(db, p.email, "auth.2fa_enable", "user", p.email)
+    db.commit()
+    return {"totp_enabled": True}
+
+
+@router.post("/auth/2fa/disable", tags=["auth"])
+def otp_disable(body: OtpDisableIn, db: Session = Depends(get_db), p: Principal = Depends(viewer)):
+    user = _self_user(db, p)
+    if not verify_password(body.password, user.password_hash) or not verify_totp(decrypt_pii(user.totp_secret_enc) or "", body.code):
+        raise HTTPException(400, "비밀번호 또는 OTP 코드가 올바르지 않습니다")
+    user.totp_enabled, user.totp_secret_enc = False, None
+    audit(db, p.email, "auth.2fa_disable", "user", p.email)
+    db.commit()
+    return {"totp_enabled": False}
 
 
 class UserIn(BaseModel):
     email: EmailStr
-    password: str = Field(min_length=8)
+    password: str = Field(min_length=10)
     role: Role = Role.VIEWER
+
+
+USER_HIDDEN = {"password_hash", "totp_secret_enc"}
 
 
 @router.get("/users", tags=["auth"])
 def list_users(db: Session = Depends(get_db), p: Principal = Depends(admin)):
-    return [to_dict(u, exclude={"password_hash"}) for u in db.query(User).all()]
+    return [to_dict(u, exclude=USER_HIDDEN) for u in db.query(User).order_by(User.id)]
+
+
+class UserPatch(BaseModel):
+    role: Role | None = None
+    active: bool | None = None
+    unlock: bool = False
+    reset_2fa: bool = False
+    reset_password: str | None = Field(default=None, min_length=10, max_length=128)
+
+
+@router.patch("/users/{uid}", tags=["auth"])
+def patch_user(uid: int, body: UserPatch, db: Session = Depends(get_db), p: Principal = Depends(admin)):
+    u = _404(db.get(User, uid), "사용자")
+    if u.email == p.email and (body.active is False or (body.role and body.role != Role.ADMIN)):
+        raise HTTPException(409, "자기 자신의 비활성화/권한 강등은 할 수 없습니다")
+    changes: dict = {}
+    if body.role is not None:
+        u.role, changes["role"] = body.role, body.role.value
+    if body.active is not None:
+        u.active, changes["active"] = body.active, body.active
+    if body.unlock:
+        u.failed_logins, u.locked_until, changes["unlock"] = 0, None, True
+    if body.reset_2fa:
+        u.totp_enabled, u.totp_secret_enc, changes["reset_2fa"] = False, None, True
+    if body.reset_password:
+        u.password_hash, u.password_changed_at, changes["reset_password"] = hash_password(body.reset_password), None, True
+    audit(db, p.email, "user.update", "user", u.email, **{k: str(v) for k, v in changes.items()})
+    db.commit()
+    return to_dict(u, exclude=USER_HIDDEN)
 
 
 @router.post("/users", tags=["auth"])
@@ -121,7 +212,7 @@ def create_user(body: UserIn, db: Session = Depends(get_db), p: Principal = Depe
     db.add(u)
     audit(db, p.email, "user.create", "user", body.email, role=body.role.value)
     db.commit()
-    return to_dict(u, exclude={"password_hash"})
+    return to_dict(u, exclude=USER_HIDDEN)
 
 
 # ------------------------------------------------------------------ 대시보드/분석

@@ -27,7 +27,7 @@ export default function Purchases() {
         { key: "amount", label: "발주액", render: (r) => won(r.amount) },
         { key: "status", label: "발주 상태", render: (r) => <div><Badge value={r.status} />{r.dry_run && <span className="ml-1 rounded bg-amber-100 px-1 text-xs">DRY-RUN</span>}</div> },
         { key: "order_status", label: "주문 상태", render: (r) => <Badge value={r.order.status} /> },
-        { key: "supplier_order_no", label: "공급사 발주번호" }, { key: "attempts", label: "시도" },
+        { key: "supplier_order_no", label: "공급사 발주번호", render: (r) => <span>{r.supplier_order_no || "-"}{r.return_status && <span className="block text-xs text-orange-700">반품 {r.return_status} {r.supplier_return_no || ""}</span>}</span> }, { key: "attempts", label: "시도" },
         { key: "last_error", label: "오류", render: (r) => <span className="text-xs text-red-700">{r.last_error || ""}</span> },
         { key: "created_at", label: "생성", render: (r) => dt(r.created_at) },
         { key: "act", label: "", render: (r) => ["AWAITING_APPROVAL", "ON_HOLD", "STOCK_CHECKED"].includes(r.order.status) && (

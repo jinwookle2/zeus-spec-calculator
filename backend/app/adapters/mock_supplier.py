@@ -118,3 +118,6 @@ class MockSupplierAdapter(SupplierAdapter):
 
     def cancel_order(self, supplier_order_no: str) -> bool:
         return True
+
+    def request_return(self, supplier_order_no: str, reason: str | None = None) -> str:
+        return "RET-" + hashlib.sha1(supplier_order_no.encode()).hexdigest()[:8].upper()

@@ -119,7 +119,7 @@ def _apply_naver_status(db: Session, naver: NaverClient, order: Order, f: dict) 
     elif claim == "RETURN" and order.status in (S.SHIPPED, S.TRACKING_REGISTERED, S.DELIVERED):
         order.claim_type = "RETURN"
         transition(db, order, S.RETURN_REQUESTED, "naver", "고객 반품 요청")
-        raise_alert(db, "warning", "claim", f"반품 요청 {order.naver_product_order_id}: 공급사 반품 절차 확인 필요")
+        request_supplier_return(db, order, "naver")
     elif claim == "EXCHANGE" and order.status in (S.TRACKING_REGISTERED, S.DELIVERED):
         order.claim_type = "EXCHANGE"
         transition(db, order, S.EXCHANGE_REQUESTED, "naver", "고객 교환 요청")
@@ -416,3 +416,27 @@ def redispatch_exchange(db: Session, naver: NaverClient, order: Order, carrier_c
     order.claim_status = "EXCHANGE_REDISPATCHED"
     transition(db, order, S.TRACKING_REGISTERED, actor, f"교환 재배송 {naver_code} {tracking_no}")
     return True
+
+
+def request_supplier_return(db: Session, order: Order, actor: str) -> str:
+    """공급사 반품 접수. API 가 있으면 자동 접수, 없거나 실제 공급사인데 안전 스위치가 꺼져 있으면 수동 처리로 표시."""
+    po = db.query(PurchaseOrder).filter_by(order_id=order.id).one_or_none()
+    if po is None or not po.supplier_order_no:
+        raise_alert(db, "warning", "claim", f"반품 요청 {order.naver_product_order_id}: 발주 기록 없음 → 수동 확인")
+        return "NO_PURCHASE"
+    if po.return_status == "REQUESTED":
+        return "ALREADY"
+    adapter = get_adapter(po.supplier)
+    if adapter.is_live and not get_settings().allow_real_purchase:
+        po.return_status = "MANUAL_REQUIRED"
+        raise_alert(db, "warning", "claim", f"반품 요청 {order.naver_product_order_id}: 실제 공급사 호출 비활성 → 수동 반품 접수")
+        return "MANUAL_REQUIRED"
+    try:
+        po.supplier_return_no = adapter.request_return(po.supplier_order_no, "고객 반품")
+        po.return_status = "REQUESTED"
+        audit(db, actor, "purchase.return_request", "purchase_order", po.id, return_no=po.supplier_return_no)
+        return "REQUESTED"
+    except (AdapterError, PurchaseNotSupported) as e:
+        po.return_status = "MANUAL_REQUIRED"
+        raise_alert(db, "warning", "claim", f"반품 요청 {order.naver_product_order_id}: 공급사 반품 수동 접수 필요 ({e})")
+        return "MANUAL_REQUIRED"

@@ -98,7 +98,9 @@ PAID → STOCK_CHECKED → PURCHASE_REQUESTED → SUPPLIER_CONFIRMED → SHIPPED
 - **제한 태그 필터**: 등록 직전에 `GET /v2/tags/restricted-tags` 로 조회(읽기 전용)해서 제한 태그를 빼고 경고로 남긴다.
 - **교환 처리**: 교환 요청이 오면 `EXCHANGE_REQUESTED` 와 알림 → 관리자가 '교환 수거 완료'(`claim/exchange/collect/approve`) → 재배송 송장 등록(`claim/exchange/dispatch`, 택배사 공식 코드 매핑) → `TRACKING_REGISTERED`. 공급사에 재배송을 요청하는 일은 수동이다.
 - **정산 대사** (`reconcile_settlements`, 6시간마다, 최근 7일): `GET /v1/pay-settle/settle/case` 로 건별 정산을 저장해 주문과 연결한다. 실제 수수료(결제+판매연동+무이자)와 설정 수수료율로 계산한 추정치의 차이가 max(100원, 0.5%) 를 넘으면 불일치로 표시하고 알림을 보낸다. 매출 분석은 정산된 주문에 한해 실제 수수료를 쓴다.
-- **관리자 보안**: 로그인 5회 실패 시 15분 잠금, 비밀번호 변경(10자 이상), 잠금과 변경은 감사 로그에 기록. 초기 비밀번호로 로그인하면 변경을 권고한다.
+- **관리자 보안**: 로그인 5회 실패 시 15분 잠금, 비밀번호 변경(10자 이상), 2단계 인증(TOTP, 비밀키는 Fernet 암호화 저장), admin 의 사용자 관리. 잠금·변경·2FA 설정은 감사 로그에 기록. 초기 비밀번호로 로그인하면 변경을 권고한다.
+- **반품**: 네이버 반품 요청이 오면 공급사 Adapter 의 `request_return` 으로 반품을 접수하고 접수번호를 발주에 저장한다. API 가 없으면 `MANUAL_REQUIRED` 로 표시하고 알림을 보낸다.
+- **CI**: `.github/workflows/ci.yml` 이 마이그레이션 검사, 백엔드 테스트(SQLite/PostgreSQL), 프론트 빌드, E2E(PostgreSQL+Redis+Celery+Next) 를 실행한다.
 
 ## 7. 네이버 Commerce API 근거
 

@@ -40,7 +40,7 @@
 - **Phase 5 네이버 등록**: `naver/`, `services/listing.py` ✅ (Live 는 Dry-run 까지 검증)
 - **Phase 6 주문·발주·배송**: `services/fulfillment.py`, `order_state.py` ✅
 - **Phase 7 관리자**: `frontend/` ✅
-- **Phase 8 테스트·배포**: pytest 47개(SQLite, PostgreSQL 모두 통과), Playwright E2E 1개, docker-compose ✅ (이 개발 환경에는 Docker 데몬이 없어 이미지 빌드는 미검증, compose 문법만 검증)
+- **Phase 8 테스트·배포**: pytest 51개(SQLite, PostgreSQL 모두 통과), Playwright E2E 2개, docker-compose ✅ (이 개발 환경에는 Docker 데몬이 없어 이미지 빌드는 미검증, compose 문법만 검증)
 
 ## 운영 전환 단계 (권장 순서)
 
@@ -61,11 +61,16 @@
 - 네이버 건별 정산 대사와 수수료 불일치 알림, 매출 분석에 실제 수수료 반영
 - 로그인 잠금(5회/15분), 비밀번호 변경 화면
 
+## 추가 완료 (2026-11-09)
+- 관리자 2단계 인증(TOTP, RFC 6238 벡터로 검증): 설정, 확인 후 켜기, 끄기, OTP 로그인
+- 사용자 관리 화면: 추가, 역할 변경, 비활성화, 잠금 해제, 2FA 초기화 (자기 자신 강등·비활성화 금지)
+- 반품 요청 시 공급사 반품 자동 접수(`request_return`). API 가 없거나 실제 공급사 스위치가 꺼져 있으면 수동 접수 알림
+- GitHub Actions CI: 마이그레이션 검사, pytest(SQLite·PostgreSQL), 프론트 빌드, 전체 스택 Playwright E2E
+
 ## 남은 작업 (미구현 / 개선)
 - 실제 계정으로 주문 응답 샘플을 받아 파서 검증 (필드명은 공식 문서와 대조 완료)
 - 상품군별 고시정보 스키마 자동 매핑 (현재 ETC 상품군 기본값)
 - 옵션 단위 재고/가격 동기화 (현재 상품 단위 + 옵션 재고 참고)
-- 반품 시 공급사 반품 접수, 교환 재배송분의 공급사 재발주 (현재 수동)
-- 2단계 인증(2FA), 관리자 화면의 사용자 관리 (API 는 있음)
+- 교환 재배송분의 공급사 재발주 (현재 수동)
 - 정산 응답 실데이터 확인: 수수료 금액 부호(차감 표기)는 절댓값으로 비교하도록 구현함
 - Claude 호출: 실제 API 키로 품질 평가(eval) 후 프롬프트 조정. 서버측 refusal fallback 은 규칙 기반 폴백으로 대체

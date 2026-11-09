@@ -92,3 +92,7 @@ class SupplierAdapter(ABC):
 
     def cancel_order(self, supplier_order_no: str) -> bool:
         raise PurchaseNotSupported(f"{self.code}: 발주 취소 API 미지원")
+
+    def request_return(self, supplier_order_no: str, reason: str | None = None) -> str:
+        """공급사 반품 접수. 반환: 공급사 반품 접수번호."""
+        raise PurchaseNotSupported(f"{self.code}: 반품 접수 API 미지원")

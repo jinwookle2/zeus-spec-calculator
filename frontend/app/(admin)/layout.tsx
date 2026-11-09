@@ -9,7 +9,7 @@ const MENU = [
   ["/", "대시보드"], ["/suppliers", "공급사 관리"], ["/sourcing", "상품 소싱"], ["/listing-queue", "상품 등록 대기"],
   ["/products", "등록 상품 관리"], ["/pricing", "가격 및 마진 관리"], ["/inventory", "재고 관리"], ["/orders", "주문 관리"],
   ["/purchases", "공급사 발주"], ["/shipping", "배송 관리"], ["/analytics", "매출 및 수익 분석"], ["/alerts", "오류 및 알림"],
-  ["/automation", "자동화 설정"], ["/connections", "API 연결 설정"],
+  ["/automation", "자동화 설정"], ["/connections", "API 연결 설정"], ["/users", "사용자 관리"],
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

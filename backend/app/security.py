@@ -90,3 +90,35 @@ def mask_address(addr: str | None) -> str | None:
         return addr
     parts = addr.split()
     return " ".join(parts[:2]) + " ***" if len(parts) > 2 else "***"
+
+
+# ---------------- 2단계 인증 (TOTP, RFC 6238) ----------------
+import hmac as _hmac
+import secrets as _secrets
+import struct as _struct
+import time as _time
+from urllib.parse import quote as _quote
+
+
+def new_totp_secret() -> str:
+    return base64.b32encode(_secrets.token_bytes(20)).decode().rstrip("=")
+
+
+def totp_code(secret: str, for_time: float | None = None, step: int = 30, digits: int = 6) -> str:
+    key = base64.b32decode(secret + "=" * (-len(secret) % 8), casefold=True)
+    counter = int((for_time if for_time is not None else _time.time()) // step)
+    digest = _hmac.new(key, _struct.pack(">Q", counter), hashlib.sha1).digest()
+    offset = digest[-1] & 0x0F
+    value = (_struct.unpack(">I", digest[offset:offset + 4])[0] & 0x7FFFFFFF) % (10 ** digits)
+    return str(value).zfill(digits)
+
+
+def verify_totp(secret: str, code: str | None, window: int = 1) -> bool:
+    if not code or not code.strip().isdigit():
+        return False
+    now = _time.time()
+    return any(_hmac.compare_digest(totp_code(secret, now + i * 30), code.strip()) for i in range(-window, window + 1))
+
+
+def totp_uri(secret: str, email: str, issuer: str = "SmartStore-Automation") -> str:
+    return f"otpauth://totp/{_quote(issuer)}:{_quote(email)}?secret={secret}&issuer={_quote(issuer)}&digits=6&period=30"
