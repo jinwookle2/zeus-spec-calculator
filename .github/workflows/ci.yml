@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NAVER_MODE: mock
+  JWT_SECRET: ci-jwt-secret-0123456789abcdef0123456789abcdef
+  SERVICE_TOKEN: ci-service-token
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: {POSTGRES_USER: ci, POSTGRES_PASSWORD: ci, POSTGRES_DB: ci}
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci" --health-interval 5s --health-timeout 5s --health-retries 10
+    defaults:
+      run: {working-directory: backend}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip, cache-dependency-path: backend/requirements*.txt}
+      - run: pip install -r requirements-dev.txt
+      - name: Migrations are up to date
+        env: {DATABASE_URL: "postgresql+psycopg2://ci:ci@localhost:5432/ci"}
+        run: alembic upgrade head && alembic check
+      - name: Tests (SQLite)
+        run: pytest
+      - name: Tests (PostgreSQL)
+        env: {TEST_DATABASE_URL: "postgresql+psycopg2://ci:ci@localhost:5432/ci"}
+        run: pytest --cov=app --cov-report=term
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run: {working-directory: frontend}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22", cache: npm, cache-dependency-path: frontend/package-lock.json}
+      - run: npm ci
+      - run: npx next build
+
+  e2e:
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: {POSTGRES_USER: ci, POSTGRES_PASSWORD: ci, POSTGRES_DB: e2e}
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+    env:
+      DATABASE_URL: postgresql+psycopg2://ci:ci@localhost:5432/e2e
+      REDIS_URL: redis://localhost:6379/0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip, cache-dependency-path: backend/requirements*.txt}
+      - uses: actions/setup-node@v4
+        with: {node-version: "22", cache: npm, cache-dependency-path: frontend/package-lock.json}
+      - run: pip install -r backend/requirements.txt
+      - run: npm ci && npx next build && npx playwright install --with-deps chromium
+        working-directory: frontend
+      - name: Start API, worker, web
+        run: |
+          (cd backend && nohup uvicorn app.main:app --port 8000 > ../api.log 2>&1 &)
+          (cd backend && nohup celery -A app.celery_app worker -l info --concurrency 2 > ../worker.log 2>&1 &)
+          (cd frontend && BACKEND_URL=http://localhost:8000 nohup npx next start -p 3000 > ../web.log 2>&1 &)
+          for i in $(seq 1 60); do curl -sf localhost:3000/health && break; sleep 2; done
+      - run: npx playwright test
+        working-directory: frontend
+      - if: failure()
+        run: tail -n 100 api.log worker.log web.log
