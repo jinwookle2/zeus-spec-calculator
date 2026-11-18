@@ -1,0 +1,32 @@
+{
+  "_comment": "지도 문자 → 타일셋(assets/tilesets/cheongpung_tiles.png, 8열) 인덱스. solid=true 이면 충돌.",
+  "tileset": "res://assets/tilesets/cheongpung_tiles.png",
+  "columns": 8,
+  "legend": {
+    ".": {"index": 0, "name": "풀밭"},
+    ",": {"index": 1, "name": "꽃밭"},
+    "#": {"index": 2, "name": "흙길"},
+    "s": {"index": 3, "name": "돌바닥"},
+    "T": {"index": 4, "name": "나무", "solid": true},
+    "*": {"index": 5, "name": "덤불", "solid": true},
+    "X": {"index": 6, "name": "바위", "solid": true},
+    "=": {"index": 7, "name": "울타리", "solid": true},
+    "~": {"index": 8, "name": "연못", "solid": true},
+    "w": {"index": 9, "name": "벽", "solid": true},
+    "o": {"index": 10, "name": "창문 벽", "solid": true},
+    "D": {"index": 11, "name": "문", "solid": true},
+    "r": {"index": 12, "name": "붉은 지붕", "solid": true},
+    "R": {"index": 13, "name": "붉은 처마", "solid": true},
+    "b": {"index": 14, "name": "푸른 지붕", "solid": true},
+    "B": {"index": 15, "name": "푸른 처마", "solid": true},
+    "g": {"index": 16, "name": "초록 지붕", "solid": true},
+    "G": {"index": 17, "name": "초록 처마", "solid": true},
+    "S": {"index": 18, "name": "팻말", "solid": true},
+    "p": {"index": 19, "name": "모래"},
+    "W": {"index": 20, "name": "돌담", "solid": true},
+    "J": {"index": 21, "name": "항아리", "solid": true},
+    "P": {"index": 22, "name": "수련 목인", "solid": true},
+    "O": {"index": 23, "name": "우물", "solid": true},
+    "L": {"index": 24, "name": "석등", "solid": true}
+  }
+}

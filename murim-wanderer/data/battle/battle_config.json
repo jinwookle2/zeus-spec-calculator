@@ -1,0 +1,15 @@
+{
+  "_comment": "전투 수치/공식. 피해 = max(최소피해, (공격력*위력 - 방어력*방어계수) * 난수) * 치명타 * 기합 * 방어",
+  "damage": {
+    "variance_min": 0.85,
+    "variance_max": 1.15,
+    "min_damage": 1,
+    "defense_factor": 0.5,
+    "guard_multiplier": 0.5,
+    "crit_chance": 0.08,
+    "crit_multiplier": 1.5
+  },
+  "flee": {"base_chance": 0.5, "agility_factor": 0.05, "min_chance": 0.1, "max_chance": 0.95},
+  "defeat": {"revive_hp_ratio": 0.5, "return_map": "cheongpung", "return_tile": [16, 6]},
+  "message_delay": 0.9
+}

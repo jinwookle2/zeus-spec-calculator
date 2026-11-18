@@ -1,0 +1,8 @@
+{
+  "herb": {"name": "약초", "type": "heal_hp", "amount": 30, "price": 10, "usable_in_battle": true,
+           "desc": "HP를 30 회복한다. 쓴맛이 인생 같다."},
+  "qi_pill": {"name": "기력환", "type": "heal_mp", "amount": 15, "price": 25, "usable_in_battle": true,
+              "desc": "MP를 15 회복한다. 사범님 몰래 먹자."},
+  "manual_fragment": {"name": "낡은 비급 조각", "type": "key", "usable_in_battle": false,
+                      "desc": "'천하제일...' 다음 글자가 찢겨 있다. 뭐가 제일이라는 거지?"}
+}

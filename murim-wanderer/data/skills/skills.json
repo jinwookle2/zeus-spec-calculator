@@ -1,0 +1,17 @@
+{
+  "basic_fist": {
+    "name": "기본권", "type": "attack", "mp_cost": 0, "power": 1.0, "hits": 1,
+    "desc": "정직한 주먹 한 방. 일반 공격.",
+    "use_text": "{user}의 기본권!"
+  },
+  "combo_fist": {
+    "name": "연속권", "type": "attack", "mp_cost": 5, "power": 0.75, "hits": 2,
+    "desc": "MP 5. 쉬지 않고 두 번 때린다. 숨은 나중에 쉰다.",
+    "use_text": "{user}의 연속권! 다다닥!"
+  },
+  "kihap": {
+    "name": "기합", "type": "buff", "mp_cost": 3, "buff_multiplier": 1.8,
+    "desc": "MP 3. 크게 소리쳐 다음 공격을 강화한다. 이웃이 깬다.",
+    "use_text": "{user}: 하아아아앗!!"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "start_map": "cheongpung",
+  "maps": {
+    "cheongpung": "res://data/maps/cheongpung.json",
+    "training_ground": "res://data/maps/training_ground.json"
+  }
+}
