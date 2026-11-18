@@ -273,6 +273,32 @@ class PurchaseOrder(Base):
     supplier: Mapped[Supplier] = relationship()
 
 
+class ExchangeReorder(Base):
+    """교환 재배송분 공급사 재발주. 원 발주(PurchaseOrder)와 분리해 주문당 1건만 허용(중복 재발주 방지)."""
+
+    __tablename__ = "exchange_reorders"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), unique=True)
+    idempotency_key: Mapped[str] = mapped_column(String(100), unique=True)
+    supplier_id: Mapped[int] = mapped_column(ForeignKey("suppliers.id"), index=True)
+    status: Mapped[PurchaseStatus] = mapped_column(
+        Enum(PurchaseStatus, native_enum=False, length=20), default=PurchaseStatus.PENDING_APPROVAL, index=True
+    )
+    amount: Mapped[Decimal] = mapped_column(Money)
+    supplier_order_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    carrier_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    tracking_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    dry_run: Mapped[bool] = mapped_column(Boolean, default=True)
+    approved_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    order: Mapped[Order] = relationship()
+    supplier: Mapped[Supplier] = relationship()
+
+
 class AppSetting(Base):
     __tablename__ = "app_settings"
     key: Mapped[str] = mapped_column(String(100), primary_key=True)

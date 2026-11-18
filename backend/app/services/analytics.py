@@ -7,7 +7,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models import (
-    Alert, DeadLetter, Order, OrderStatus as S, Product, ProductStatus, PurchaseOrder, PurchaseStatus, Settlement,
+    Alert, DeadLetter, ExchangeReorder, Order, OrderStatus as S, Product, ProductStatus, PurchaseOrder, PurchaseStatus, Settlement,
     Supplier, SupplierProduct, utcnow,
 )
 from app.services import pricing
@@ -51,6 +51,12 @@ def revenue(db: Session, days: int = 30) -> dict:
     po_rows = (db.query(PurchaseOrder).join(Order)
                .filter(Order.created_at >= since, Order.status.notin_(EXCLUDED), PurchaseOrder.status != PurchaseStatus.CANCELLED))
     cost = sum((po.amount for po in po_rows), Decimal(0))
+    ex_rows = (db.query(ExchangeReorder).join(Order)
+               .filter(Order.created_at >= since, Order.status.notin_(EXCLUDED), ExchangeReorder.dry_run.is_(False),
+                       ExchangeReorder.status.in_([PurchaseStatus.REQUESTED, PurchaseStatus.CONFIRMED,
+                                                   PurchaseStatus.SHIPPED])))
+    exchange_cost = sum((ex.amount for ex in ex_rows), Decimal(0))
+    cost += exchange_cost
     other = cfg.other_variable_cost * len(rows)
     profit = sales - fees - ads - cost - other
     by_day: dict[str, Decimal] = {}
@@ -59,7 +65,7 @@ def revenue(db: Session, days: int = 30) -> dict:
         by_day[k] = by_day.get(k, Decimal(0)) + o.total_amount
     return {
         "days": days, "orders": len(rows), "sales": str(sales), "platform_fees": str(fees), "ad_cost": str(ads),
-        "supplier_cost": str(cost), "other_cost": str(other), "estimated_profit": str(profit),
+        "supplier_cost": str(cost), "exchange_reorder_cost": str(exchange_cost), "other_cost": str(other), "estimated_profit": str(profit),
         "margin_rate": str((profit / sales).quantize(Decimal("0.0001"))) if sales else "0",
         "by_day": {k: str(v) for k, v in sorted(by_day.items())},
         "settled_orders": len(settled),

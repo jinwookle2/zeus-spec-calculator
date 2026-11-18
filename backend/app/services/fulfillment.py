@@ -13,6 +13,7 @@ from app.config import get_settings
 from app.logging_setup import log
 from app.models import (
     AppSetting,
+    ExchangeReorder,
     Order,
     OrderEvent,
     OrderStatus as S,
@@ -30,6 +31,7 @@ from app.services.order_state import transition
 from app.services.settings_service import get_all_settings
 
 SYSTEM = "system"
+EX_COLLECTED = "EXCHANGE_COLLECTED"
 LAST_POLL_KEY = "_last_order_poll"
 
 
@@ -123,7 +125,7 @@ def _apply_naver_status(db: Session, naver: NaverClient, order: Order, f: dict) 
     elif claim == "EXCHANGE" and order.status in (S.TRACKING_REGISTERED, S.DELIVERED):
         order.claim_type = "EXCHANGE"
         transition(db, order, S.EXCHANGE_REQUESTED, "naver", "고객 교환 요청")
-        raise_alert(db, "warning", "claim", f"교환 요청 {order.naver_product_order_id}: 수동 처리 필요")
+        raise_alert(db, "warning", "claim", f"교환 요청 {order.naver_product_order_id}: 반품 상품 수거 확인 후 '교환 수거 완료' 처리 필요")
 
 
 # --------------------------------------------------------------------- 재고 확인 + 발주
@@ -161,11 +163,15 @@ def check_stock(db: Session, order: Order, s: dict) -> bool:
 
 
 def purchased_amount_today(db: Session) -> Decimal:
+    """오늘 실제 발주 금액 합계 (원 발주 + 교환 재발주). 일일 발주 한도 계산용."""
     start = datetime.combine(utcnow().date(), time.min, tzinfo=timezone.utc)
-    total = (db.query(func.coalesce(func.sum(PurchaseOrder.amount), 0))
-             .filter(PurchaseOrder.created_at >= start, PurchaseOrder.dry_run.is_(False),
-                     PurchaseOrder.status.in_([P.REQUESTING, P.REQUESTED, P.CONFIRMED, P.SHIPPED])).scalar())
-    return Decimal(str(total or 0))
+    active = [P.REQUESTING, P.REQUESTED, P.CONFIRMED, P.SHIPPED]
+    total = Decimal(0)
+    for model in (PurchaseOrder, ExchangeReorder):
+        v = (db.query(func.coalesce(func.sum(model.amount), 0))
+             .filter(model.created_at >= start, model.dry_run.is_(False), model.status.in_(active)).scalar())
+        total += Decimal(str(v or 0))
+    return total
 
 
 def get_or_create_purchase(db: Session, order: Order) -> PurchaseOrder:
@@ -236,6 +242,15 @@ def approve_purchase(db: Session, naver: NaverClient, po: PurchaseOrder, actor: 
     return submit_purchase(db, naver, po, actor, get_all_settings(db))
 
 
+def _recipient(order: Order, supplier: Supplier, adapter) -> tuple[dict, bool]:
+    """공급사에 넘길 수령인 정보. 실제 공급사 + ALLOW_PII_TRANSFER + 위탁 동의일 때만 원문, 아니면 마스킹."""
+    pii_ok = adapter.is_live and get_settings().allow_pii_transfer and supplier.pii_transfer_agreed
+    name, phone, addr = decrypt_pii(order.buyer_name_enc), decrypt_pii(order.buyer_phone_enc), decrypt_pii(order.address_enc)
+    recipient = ({"name": name, "phone": phone, "address": addr} if pii_ok else
+                 {"name": mask_name(name), "phone": mask_phone(phone), "address": mask_address(addr), "masked": True})
+    return recipient, pii_ok
+
+
 def submit_purchase(db: Session, naver: NaverClient, po: PurchaseOrder, actor: str, s: dict) -> str:
     """공급사 발주 1회 시도. 반환: CONFIRMED | REQUESTED | RETRY | FAILED | DRY_RUN | LIMIT | DUPLICATE."""
     cfg = get_settings()
@@ -252,10 +267,7 @@ def submit_purchase(db: Session, naver: NaverClient, po: PurchaseOrder, actor: s
         raise_alert(db, "error", "purchase_limit", f"일일 발주 한도 초과로 보류: {order.naver_product_order_id}")
         return "LIMIT"
 
-    pii_ok = adapter.is_live and cfg.allow_pii_transfer and supplier.pii_transfer_agreed
-    name, phone, addr = decrypt_pii(order.buyer_name_enc), decrypt_pii(order.buyer_phone_enc), decrypt_pii(order.address_enc)
-    recipient = ({"name": name, "phone": phone, "address": addr} if pii_ok else
-                 {"name": mask_name(name), "phone": mask_phone(phone), "address": mask_address(addr), "masked": True})
+    recipient, pii_ok = _recipient(order, supplier, adapter)
     sku = order.product.supplier_product.supplier_sku
     req = PurchaseRequest(idempotency_key=po.idempotency_key, sku=sku, option_sku=None, quantity=order.quantity,
                           recipient=recipient, attempt=po.attempts + 1)
@@ -294,10 +306,13 @@ def submit_purchase(db: Session, naver: NaverClient, po: PurchaseOrder, actor: s
 
 def retry_pending_purchases(db: Session, naver: NaverClient) -> dict:
     s = get_all_settings(db)
-    out = {"retried": 0}
+    out = {"retried": 0, "exchange_retried": 0}
     for po in db.query(PurchaseOrder).filter_by(status=P.REQUESTING).all():
         submit_purchase(db, naver, po, SYSTEM, s)
         out["retried"] += 1
+    for ex in db.query(ExchangeReorder).filter_by(status=P.REQUESTING).all():
+        submit_exchange_reorder(db, ex, SYSTEM, s)
+        out["exchange_retried"] += 1
     return out
 
 
@@ -352,6 +367,8 @@ def poll_shipments(db: Session, naver: NaverClient) -> dict:
                 out["registered"] += 1
         else:
             out["pending"] += 1
+    ex_out = poll_exchange_shipments(db, naver, s)
+    out["exchange_checked"], out["exchange_redispatched"] = ex_out["checked"], ex_out["redispatched"]
     return out
 
 
@@ -393,20 +410,22 @@ def approve_return(db: Session, naver: NaverClient, order: Order, actor: str) ->
 
 
 def approve_exchange_collect(db: Session, naver: NaverClient, order: Order, actor: str) -> None:
-    """교환 수거 완료 처리 (네이버). 재배송 상품은 공급사에 별도 발주/요청 후 redispatch_exchange 로 송장 등록."""
+    """교환 수거 완료 처리 (네이버). 이어서 재배송분 공급사 재발주(start_exchange_reorder)를 시작한다.
+    재발주 송장은 poll_shipments 가 수집해 redispatch_exchange 로 네이버에 등록한다(수동 입력도 가능)."""
     if order.status != S.EXCHANGE_REQUESTED:
         raise ValueError(f"교환 요청 상태가 아닙니다: {order.status.value}")
-    if order.claim_status == "EXCHANGE_COLLECTED":
+    if order.claim_status == EX_COLLECTED:
         return
     naver.approve_exchange_collect(order.naver_product_order_id)
-    order.claim_status = "EXCHANGE_COLLECTED"
+    order.claim_status = EX_COLLECTED
     db.add(OrderEvent(order_id=order.id, from_status=order.status.value, to_status=order.status.value, actor=actor,
                       reason="교환 수거 완료 (네이버 처리)"))
+    start_exchange_reorder(db, order, actor)
 
 
 def redispatch_exchange(db: Session, naver: NaverClient, order: Order, carrier_code: str, tracking_no: str,
                         actor: str) -> bool:
-    if order.status != S.EXCHANGE_REQUESTED or order.claim_status != "EXCHANGE_COLLECTED":
+    if order.status != S.EXCHANGE_REQUESTED or order.claim_status != EX_COLLECTED:
         raise ValueError("교환 수거 완료 후에만 재배송 송장을 등록할 수 있습니다")
     s = get_all_settings(db)
     naver_code = map_carrier(carrier_code, s.get("carrier_code_map"))
@@ -414,6 +433,15 @@ def redispatch_exchange(db: Session, naver: NaverClient, order: Order, carrier_c
         raise ValueError(f"택배사 코드 매핑 없음: '{carrier_code}'")
     naver.redispatch_exchange(order.naver_product_order_id, naver_code, tracking_no)
     order.claim_status = "EXCHANGE_REDISPATCHED"
+    ex = db.query(ExchangeReorder).filter_by(order_id=order.id).one_or_none()
+    if ex is not None:
+        ex.carrier_code, ex.tracking_no = carrier_code, tracking_no
+        if ex.status in (P.REQUESTED, P.CONFIRMED):
+            ex.status = P.SHIPPED
+        elif ex.status in (P.PENDING_APPROVAL, P.REQUESTING):
+            # 공급사 재발주 없이 다른 경로로 재배송함 → 남은 재발주는 취소해 중복 발주 방지
+            ex.status = P.CANCELLED
+            ex.last_error = "재배송 송장이 수동 등록되어 재발주 취소"
     transition(db, order, S.TRACKING_REGISTERED, actor, f"교환 재배송 {naver_code} {tracking_no}")
     return True
 
@@ -440,3 +468,149 @@ def request_supplier_return(db: Session, order: Order, actor: str) -> str:
         po.return_status = "MANUAL_REQUIRED"
         raise_alert(db, "warning", "claim", f"반품 요청 {order.naver_product_order_id}: 공급사 반품 수동 접수 필요 ({e})")
         return "MANUAL_REQUIRED"
+
+
+# --------------------------------------------------------------------- 교환 재배송 재발주
+
+
+def get_or_create_exchange_reorder(db: Session, order: Order) -> ExchangeReorder:
+    ex = db.query(ExchangeReorder).filter_by(order_id=order.id).one_or_none()
+    if ex:
+        return ex
+    sp = order.product.supplier_product
+    ex = ExchangeReorder(order_id=order.id, idempotency_key=f"EX-{order.naver_product_order_id}",
+                         supplier_id=order.supplier_id, amount=sp.supply_price * order.quantity + sp.shipping_fee,
+                         status=P.PENDING_APPROVAL)
+    db.add(ex)
+    db.flush()
+    return ex
+
+
+def start_exchange_reorder(db: Session, order: Order, actor: str) -> str:
+    """교환 수거 완료 후 재배송분 재발주를 준비하고, 자동 발주 조건을 모두 만족하면 바로 발주한다.
+    반환: NO_PRODUCT | AWAITING_APPROVAL | OUT_OF_STOCK | (submit_exchange_reorder 결과)."""
+    if order.product is None or order.supplier is None:
+        raise_alert(db, "warning", "claim", f"교환 재발주 {order.naver_product_order_id}: 매핑된 상품 없음 → 수동 처리")
+        return "NO_PRODUCT"
+    s = get_all_settings(db)
+    ex = get_or_create_exchange_reorder(db, order)
+    if ex.status != P.PENDING_APPROVAL:
+        return ex.status.value
+    ok, why = auto_purchase_allowed(order.supplier, s)
+    if ok and not s.get("auto_exchange_reorder_enabled", True):
+        ok, why = False, "교환 자동 재발주 비활성"
+    if ok:
+        info = get_adapter(order.supplier).get_stock(order.product.supplier_product.supplier_sku)
+        if not info.available or info.stock < order.quantity:
+            ex.last_error = f"재고 부족: 공급사 {info.stock}개 < 교환 {order.quantity}개"
+            raise_alert(db, "warning", "claim", f"교환 재발주 보류 {order.naver_product_order_id}: {ex.last_error}")
+            return "OUT_OF_STOCK"
+    if not ok:
+        ex.last_error = why
+        raise_alert(db, "warning", "claim", f"교환 재발주 승인 필요 {order.naver_product_order_id}: {why}")
+        return "AWAITING_APPROVAL"
+    return submit_exchange_reorder(db, ex, actor, s)
+
+
+def approve_exchange_reorder(db: Session, ex: ExchangeReorder, actor: str, supplier_order_no: str | None = None) -> str:
+    """관리자 재발주 승인. supplier_order_no 를 주면 '수동 재발주 완료' 기록(발주 API 없는 공급사)."""
+    order = ex.order
+    if order.status != S.EXCHANGE_REQUESTED or order.claim_status != EX_COLLECTED:
+        raise ValueError("교환 수거 완료 상태에서만 재발주할 수 있습니다")
+    if ex.status not in (P.PENDING_APPROVAL, P.FAILED):
+        raise ValueError(f"재발주 승인 불가 상태: {ex.status.value}")
+    ex.approved_by = actor
+    audit(db, actor, "exchange_reorder.approve", "exchange_reorder", ex.id, manual_no=supplier_order_no)
+    if supplier_order_no:
+        ex.supplier_order_no, ex.status, ex.dry_run, ex.last_error = supplier_order_no, P.CONFIRMED, False, None
+        _exchange_event(db, order, actor, f"교환 재발주 (수동) 공급사 발주번호 {supplier_order_no}")
+        return "CONFIRMED"
+    if ex.status == P.FAILED:
+        ex.status, ex.attempts = P.PENDING_APPROVAL, 0
+    return submit_exchange_reorder(db, ex, actor, get_all_settings(db))
+
+
+def submit_exchange_reorder(db: Session, ex: ExchangeReorder, actor: str, s: dict) -> str:
+    """교환 재발주 1회 시도. 원 발주와 같은 안전장치(Dry-run, 일일 한도, 개인정보 마스킹, 재시도/DLQ)를 적용한다.
+    주문 상태는 EXCHANGE_REQUESTED 그대로 두고 재발주 진행은 ExchangeReorder 에 기록한다."""
+    cfg = get_settings()
+    order, supplier = ex.order, ex.supplier
+    if ex.supplier_order_no and ex.status in (P.REQUESTED, P.CONFIRMED, P.SHIPPED):
+        return "DUPLICATE"
+    adapter = get_adapter(supplier)
+    if not adapter.supports_purchase:
+        raise PurchaseNotSupported("발주 API 미지원: 공급사에 재배송을 요청한 뒤 발주번호를 입력하세요")
+
+    limit = Decimal(str(s["daily_purchase_amount_limit"]))
+    if adapter.is_live and purchased_amount_today(db) + ex.amount > limit:
+        ex.last_error = f"일일 발주 금액 한도 초과 ({limit})"
+        raise_alert(db, "error", "purchase_limit", f"일일 발주 한도 초과로 교환 재발주 보류: {order.naver_product_order_id}")
+        return "LIMIT"
+
+    recipient, pii_ok = _recipient(order, supplier, adapter)
+    sku = order.product.supplier_product.supplier_sku
+    po = db.query(PurchaseOrder).filter_by(order_id=order.id).one_or_none()
+    memo = f"교환 재배송 (원 발주번호 {po.supplier_order_no})" if po and po.supplier_order_no else "교환 재배송"
+    req = PurchaseRequest(idempotency_key=ex.idempotency_key, sku=sku, option_sku=None, quantity=order.quantity,
+                          recipient=recipient, memo=memo, attempt=ex.attempts + 1)
+
+    if adapter.is_live and not cfg.allow_real_purchase:
+        ex.dry_run, ex.last_error = True, "ALLOW_REAL_PURCHASE=false → Dry-run (공급사 호출 안 함)"
+        audit(db, actor, "exchange_reorder.dry_run", "exchange_reorder", ex.id, sku=sku, qty=order.quantity,
+              masked=not pii_ok)
+        return "DRY_RUN"
+
+    ex.status, ex.attempts, ex.dry_run = P.REQUESTING, ex.attempts + 1, False
+    try:
+        res = adapter.place_order(req)
+    except AdapterError as e:
+        ex.last_error = str(e)
+        if ex.attempts >= int(s["max_purchase_retries"]):
+            ex.status = P.FAILED
+            dead_letter(db, "submit_exchange_reorder", {"exchange_reorder_id": ex.id,
+                                                        "order": order.naver_product_order_id}, str(e), ex.attempts)
+            return "FAILED"
+        log.warning("exchange_reorder.retry", ex=ex.id, attempt=ex.attempts, error=str(e))
+        return "RETRY"
+    ex.supplier_order_no, ex.last_error = res.supplier_order_no, None
+    ex.status = P.CONFIRMED if res.status == "CONFIRMED" else P.REQUESTED
+    audit(db, actor, "exchange_reorder.submit", "exchange_reorder", ex.id, supplier_order_no=res.supplier_order_no)
+    _exchange_event(db, order, actor, f"교환 재발주 공급사 발주번호 {res.supplier_order_no}")
+    return ex.status.value
+
+
+def poll_exchange_shipments(db: Session, naver: NaverClient, s: dict | None = None) -> dict:
+    """교환 재발주 송장을 공급사에서 받아 네이버 교환 재배송 처리."""
+    s = s or get_all_settings(db)
+    out = {"checked": 0, "redispatched": 0}
+    rows = (db.query(ExchangeReorder).join(Order)
+            .filter(ExchangeReorder.status.in_([P.REQUESTED, P.CONFIRMED]), Order.status == S.EXCHANGE_REQUESTED,
+                    Order.claim_status == EX_COLLECTED).all())
+    for ex in rows:
+        adapter = get_adapter(ex.supplier)
+        if not adapter.supports_purchase or not ex.supplier_order_no:
+            continue
+        out["checked"] += 1
+        try:
+            info = adapter.get_shipment(ex.supplier_order_no)
+        except (AdapterError, PurchaseNotSupported) as e:
+            log.warning("exchange_shipment.poll_failed", ex=ex.id, error=str(e))
+            continue
+        if info.status not in ("SHIPPED", "DELIVERED") or not info.tracking_no:
+            continue
+        ex.carrier_code, ex.tracking_no = info.carrier_code, info.tracking_no
+        try:
+            redispatch_exchange(db, naver, ex.order, info.carrier_code or "", info.tracking_no, SYSTEM)
+        except ValueError as e:
+            raise_alert(db, "warning", "carrier", f"교환 재배송 처리 불가 {ex.order.naver_product_order_id}: {e}")
+            continue
+        except NaverApiError as e:
+            raise_alert(db, "error", "naver", f"교환 재배송 처리 실패 {ex.order.naver_product_order_id}: {e}")
+            continue
+        out["redispatched"] += 1
+    return out
+
+
+def _exchange_event(db: Session, order: Order, actor: str, reason: str) -> None:
+    db.add(OrderEvent(order_id=order.id, from_status=order.status.value, to_status=order.status.value,
+                      actor=actor, reason=reason))
