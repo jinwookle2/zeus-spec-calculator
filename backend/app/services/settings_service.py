@@ -11,6 +11,7 @@ DEFAULTS: dict[str, Any] = {
     # 자동화
     "auto_listing_enabled": True,        # 검증된 공급사 + 자동등록 허용 공급사에 한해 승인 없이 등록 큐로
     "auto_purchase_enabled": True,       # 발주 API가 있고 자동발주 허용된 공급사에 한해 자동 발주
+    "auto_exchange_reorder_enabled": True,  # 교환 수거 완료 시 같은 상품·옵션으로 공급사 재발주 (자동 발주 조건을 모두 만족할 때만)
     "listing_interval_minutes": 60,
     "sourcing_interval_minutes": 180,
     "order_poll_interval_minutes": 5,

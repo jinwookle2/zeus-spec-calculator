@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 const FIELDS: [string, string, "bool" | "num" | "json"][] = [
   ["auto_listing_enabled", "상품 자동 등록 (검증·허용된 공급사만)", "bool"],
   ["auto_purchase_enabled", "공급사 자동 발주 (검증·허용된 공급사 + 발주 API)", "bool"],
+  ["auto_exchange_reorder_enabled", "교환 수거 완료 시 공급사 자동 재발주 (자동 발주 조건 동일 적용)", "bool"],
   ["listing_interval_minutes", "상품 등록 주기(분)", "num"],
   ["sourcing_interval_minutes", "상품 수집 주기(분)", "num"],
   ["order_poll_interval_minutes", "주문 수집 주기(분)", "num"],

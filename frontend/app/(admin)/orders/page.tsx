@@ -13,10 +13,12 @@ export default function Orders() {
   const [detail, setDetail] = useState<any>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [ex, setEx] = useState<Record<number, { carrier: string; no: string }>>({});
+  const [ex, setEx] = useState<Record<number, { carrier: string; no: string; manualNo?: string }>>({});
+  const { data: reorders, reload: reloadReorders } = useApi<any[]>("/exchange-reorders");
+  const reorderOf = (orderId: number) => reorders?.find((x) => x.order_id === orderId);
   async function act(fn: () => Promise<any>, ok: string) {
     try { const r = await fn(); setMsg(`${ok} ${r ? JSON.stringify(r).slice(0, 200) : ""}`); setErr(null); } catch (e) { setErr((e as Error).message); }
-    reload();
+    reload(); reloadReorders();
   }
   const open = async (id: number, reveal = false) => setDetail(await api(`/orders/${id}${reveal ? "?reveal=true" : ""}`));
   return (
@@ -45,6 +47,20 @@ export default function Orders() {
               <Btn testId={`ex-collect-${r.id}`} onClick={() => act(() => api(`/orders/${r.id}/exchange/collect-approve`, { method: "POST" }), "교환 수거 완료")}>교환 수거 완료</Btn>}
             {r.status === "EXCHANGE_REQUESTED" && r.claim_status === "EXCHANGE_COLLECTED" && (
               <div className="flex flex-col gap-1">
+                {(() => {
+                  const rx = reorderOf(r.id);
+                  if (!rx) return null;
+                  return (
+                    <div className="flex flex-col gap-1 rounded border border-slate-200 p-1" data-testid={`ex-reorder-${r.id}`}>
+                      <span className="text-xs">재발주 <Badge value={rx.status} />{rx.supplier_order_no && <span className="ml-1 text-slate-500">{rx.supplier_order_no}</span>}</span>
+                      {rx.last_error && <span className="max-w-xs text-xs text-orange-700">{rx.last_error}</span>}
+                      {["PENDING_APPROVAL", "FAILED"].includes(rx.status) && <>
+                        <Btn testId={`ex-reorder-approve-${r.id}`} onClick={() => act(() => api(`/exchange-reorders/${rx.id}/approve`, { method: "POST", body: {} }), "교환 재발주:")}>재발주 승인</Btn>
+                        <input placeholder="수동 재발주번호" className="w-28 rounded border px-1 text-xs" value={ex[r.id]?.manualNo || ""} onChange={(e) => setEx({ ...ex, [r.id]: { ...ex[r.id], manualNo: e.target.value } })} />
+                        <Btn tone="ghost" onClick={() => act(() => api(`/exchange-reorders/${rx.id}/approve`, { method: "POST", body: { supplier_order_no: ex[r.id]?.manualNo } }), "수동 재발주 기록:")}>수동 재발주 기록</Btn>
+                      </>}
+                    </div>);
+                })()}
                 <input placeholder="택배사" className="w-28 rounded border px-1 text-xs" value={ex[r.id]?.carrier || ""} onChange={(e) => setEx({ ...ex, [r.id]: { ...ex[r.id], carrier: e.target.value } })} />
                 <input placeholder="재배송 송장" className="w-28 rounded border px-1 text-xs" value={ex[r.id]?.no || ""} onChange={(e) => setEx({ ...ex, [r.id]: { ...ex[r.id], no: e.target.value } })} />
                 <Btn onClick={() => act(() => api(`/orders/${r.id}/exchange/redispatch`, { method: "POST", body: { carrier_code: ex[r.id]?.carrier, tracking_no: ex[r.id]?.no } }), "교환 재배송 등록")}>재배송 등록</Btn>
@@ -62,6 +78,10 @@ export default function Orders() {
               <li key={e.id} className="text-xs"><Badge value={e.to_status} /> {dt(e.created_at)} · {e.actor} · {e.reason}</li>))}</ol>
             <h4 className="mt-3 font-semibold">발주</h4>
             <pre className="overflow-auto rounded bg-slate-50 p-2 text-xs">{JSON.stringify(detail.purchase, null, 2)}</pre>
+            {detail.exchange_reorder && <>
+              <h4 className="mt-3 font-semibold">교환 재발주</h4>
+              <pre className="overflow-auto rounded bg-slate-50 p-2 text-xs">{JSON.stringify(detail.exchange_reorder, null, 2)}</pre>
+            </>}
           </div>
         </div>
       )}

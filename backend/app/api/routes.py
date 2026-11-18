@@ -14,7 +14,7 @@ from app.db import get_db
 from app.jobs import JOBS, run_job, run_pipeline
 from app.models import (
     Alert, ApiCallLog, AuditLog, DeadLetter, JobRun, Order, OrderEvent, OrderStatus, Product, ProductStatus,
-    PurchaseOrder, PurchaseStatus, Role, Supplier, SupplierProduct, User,
+    ExchangeReorder, PurchaseOrder, PurchaseStatus, Role, Supplier, SupplierProduct, User,
 )
 from app.naver.client import NaverApiError, get_naver_client
 from app.security import (
@@ -473,6 +473,8 @@ def get_order(oid: int, reveal: bool = False, db: Session = Depends(get_db), p: 
     d["events"] = [to_dict(e) for e in db.query(OrderEvent).filter_by(order_id=oid).order_by(OrderEvent.id)]
     po = db.query(PurchaseOrder).filter_by(order_id=oid).one_or_none()
     d["purchase"] = to_dict(po) if po else None
+    ex = db.query(ExchangeReorder).filter_by(order_id=oid).one_or_none()
+    d["exchange_reorder"] = to_dict(ex) if ex else None
     return d
 
 
@@ -564,6 +566,36 @@ def approve_purchase(poid: int, body: PurchaseApproveIn | None = None, db: Sessi
         raise HTTPException(422, str(e)) from e
     db.commit()
     return {"result": result, "purchase": _po_dict(po)}
+
+
+def _ex_dict(ex: ExchangeReorder) -> dict:
+    d = to_dict(ex)
+    d["order"] = order_dict(ex.order)
+    d["supplier_code"] = ex.supplier.code
+    return d
+
+
+@router.get("/exchange-reorders", tags=["purchases"])
+def list_exchange_reorders(status: str | None = None, db: Session = Depends(get_db), p: Principal = Depends(viewer)):
+    q = db.query(ExchangeReorder).order_by(ExchangeReorder.id.desc())
+    if status:
+        q = q.filter(ExchangeReorder.status.in_(status.split(",")))
+    return [_ex_dict(ex) for ex in q.limit(500)]
+
+
+@router.post("/exchange-reorders/{exid}/approve", tags=["purchases"])
+def approve_exchange_reorder(exid: int, body: PurchaseApproveIn | None = None, db: Session = Depends(get_db),
+                             p: Principal = Depends(operator)):
+    """교환 재발주 승인. supplier_order_no 를 주면 수동 재발주 완료로 기록."""
+    ex = _404(db.get(ExchangeReorder, exid), "교환 재발주")
+    try:
+        result = fulfillment.approve_exchange_reorder(db, ex, p.email, body.supplier_order_no if body else None)
+    except ValueError as e:
+        raise HTTPException(409, str(e)) from e
+    except fulfillment.PurchaseNotSupported as e:
+        raise HTTPException(422, str(e)) from e
+    db.commit()
+    return {"result": result, "exchange_reorder": _ex_dict(ex)}
 
 
 @router.post("/purchases/{poid}/tracking", tags=["shipping"])

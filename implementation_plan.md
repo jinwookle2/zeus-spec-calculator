@@ -40,7 +40,7 @@
 - **Phase 5 네이버 등록**: `naver/`, `services/listing.py` ✅ (Live 는 Dry-run 까지 검증)
 - **Phase 6 주문·발주·배송**: `services/fulfillment.py`, `order_state.py` ✅
 - **Phase 7 관리자**: `frontend/` ✅
-- **Phase 8 테스트·배포**: pytest 51개(SQLite, PostgreSQL 모두 통과), Playwright E2E 2개, docker-compose ✅ (이 개발 환경에는 Docker 데몬이 없어 이미지 빌드는 미검증, compose 문법만 검증)
+- **Phase 8 테스트·배포**: pytest 55개(SQLite, PostgreSQL 모두 통과), Playwright E2E 2개, docker-compose ✅ (이 개발 환경에는 Docker 데몬이 없어 이미지 빌드는 미검증, compose 문법만 검증)
 
 ## 운영 전환 단계 (권장 순서)
 
@@ -67,10 +67,13 @@
 - 반품 요청 시 공급사 반품 자동 접수(`request_return`). API 가 없거나 실제 공급사 스위치가 꺼져 있으면 수동 접수 알림
 - GitHub Actions CI: 마이그레이션 검사, pytest(SQLite·PostgreSQL), 프론트 빌드, 전체 스택 Playwright E2E
 
+## 추가 완료 (2026-11-18)
+- 교환 재배송분 공급사 재발주: 수거 완료 시 자동 재발주(자동 발주 조건 + `auto_exchange_reorder_enabled`), 승인/수동 발주번호 입력, 재시도·DLQ, 일일 한도 합산, 송장 폴링 → 네이버 교환 재배송 자동 처리, 매출 분석에 재발주 비용 반영 (마이그레이션 0003)
+
 ## 남은 작업 (미구현 / 개선)
 - 실제 계정으로 주문 응답 샘플을 받아 파서 검증 (필드명은 공식 문서와 대조 완료)
 - 상품군별 고시정보 스키마 자동 매핑 (현재 ETC 상품군 기본값)
 - 옵션 단위 재고/가격 동기화 (현재 상품 단위 + 옵션 재고 참고)
-- 교환 재배송분의 공급사 재발주 (현재 수동)
+- 옵션 변경 교환: 네이버 교환 클레임의 변경 옵션을 파싱해 재발주 SKU 에 반영 (현재 같은 옵션으로만 자동 재발주)
 - 정산 응답 실데이터 확인: 수수료 금액 부호(차감 표기)는 절댓값으로 비교하도록 구현함
 - Claude 호출: 실제 API 키로 품질 평가(eval) 후 프롬프트 조정. 서버측 refusal fallback 은 규칙 기반 폴백으로 대체
