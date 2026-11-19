@@ -4,7 +4,7 @@ extends Node
 signal changed
 
 const PATH := "user://settings.cfg"
-const TEXT_SPEEDS := {"slow": 25.0, "normal": 50.0, "fast": 120.0, "instant": 0.0}
+const TEXT_SPEEDS := {"slow": 45.0, "normal": 90.0, "fast": 180.0, "instant": 0.0}
 const TEXT_SPEED_NAMES := {"slow": "느림", "normal": "보통", "fast": "빠름", "instant": "즉시"}
 const TOUCH_MODES := {"auto": "자동", "on": "켜기", "off": "끄기"}
 

@@ -437,7 +437,7 @@ func test_playthrough() -> void:
 	var player: Node = get_tree().get_first_node_in_group("player")
 	check(player != null, "플레이어 생성")
 	var tex: Texture2D = player.get_node("Sprite").sprite_frames.get_frame_texture("idle_down", 0)
-	check(tex != null and tex.get_width() == 32, "플레이어 스프라이트 32x32")
+	check(tex != null and tex.get_width() == 32 and tex.get_height() == 48, "플레이어 스프라이트 32x48")
 	await seconds(0.5)
 	await shot("03_village")
 

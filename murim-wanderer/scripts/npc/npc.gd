@@ -71,6 +71,7 @@ func interact(player: Node2D) -> void:
 
 
 func hop() -> void:
+	var base := -8.0
 	var t := create_tween()
-	t.tween_property(sprite, "position:y", -6.0, 0.08)
-	t.tween_property(sprite, "position:y", 0.0, 0.08)
+	t.tween_property(sprite, "position:y", base - 6.0, 0.06)
+	t.tween_property(sprite, "position:y", base, 0.06)

@@ -67,10 +67,10 @@ func _build() -> void:
 	_panel.add_child(_arrow)
 
 	_name_panel = UiKit.panel_container(4)
-	_name_panel.add_theme_stylebox_override("panel", UiKit.box(Color(0.45, 0.16, 0.14, 0.98), UiKit.GOLD, 2, 4))
+	_name_panel.add_theme_stylebox_override("panel", UiKit.box(UiKit.VERMILION, UiKit.GOLD, 1, 4))
 	_name_panel.position = Vector2(10, -14)
 	_panel.add_child(_name_panel)
-	_name_label = UiKit.label("", 12, Color(1, 0.93, 0.7))
+	_name_label = UiKit.label("", 12, UiKit.TEXT)
 	_name_panel.add_child(_name_label)
 
 
@@ -151,7 +151,7 @@ func advance() -> void:
 	if not _open:
 		return
 	var now := Time.get_ticks_msec()
-	if now - _last_advance_ms < 120:
+	if now - _last_advance_ms < 80:
 		return
 	_last_advance_ms = now
 	if _typing:

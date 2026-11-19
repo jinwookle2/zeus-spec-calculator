@@ -3,7 +3,7 @@ extends CharacterBody2D
 
 signal interacted(target: Node)
 
-@export var speed: float = 96.0
+@export var speed: float = 140.0
 @export var interact_reach: float = 24.0
 @export var interact_tolerance: float = 20.0
 
@@ -30,7 +30,7 @@ func _physics_process(delta: float) -> void:
 	_interact_cooldown = maxf(0.0, _interact_cooldown - delta)
 	if GameState.is_input_locked():
 		velocity = Vector2.ZERO
-		_interact_cooldown = 0.2
+		_interact_cooldown = 0.12
 		if sprite.animation.begins_with("walk_"):
 			sprite.play("idle_" + facing)
 		return

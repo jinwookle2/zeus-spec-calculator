@@ -37,7 +37,7 @@ func _build() -> void:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 2)
 	box.add_child(v)
-	_lv = UiKit.label("", 12, Color(1, 0.93, 0.7))
+	_lv = UiKit.label("", 12, UiKit.NAME)
 	v.add_child(_lv)
 	for kind in ["HP", "MP"]:
 		var row := HBoxContainer.new()
@@ -72,7 +72,7 @@ func _build() -> void:
 	_root.add_child(right)
 	var map_box := UiKit.panel_container(5)
 	map_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_map_label = UiKit.label("", 12, Color(1, 0.93, 0.7))
+	_map_label = UiKit.label("", 12, UiKit.NAME)
 	map_box.add_child(_map_label)
 	right.add_child(map_box)
 	var menu_btn := UiKit.button("메뉴", Vector2(48, 26))

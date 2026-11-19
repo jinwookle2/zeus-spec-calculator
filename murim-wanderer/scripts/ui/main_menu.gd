@@ -35,14 +35,30 @@ func _build() -> void:
 	var title_box := VBoxContainer.new()
 	title_box.anchor_left = 0.5
 	title_box.anchor_right = 0.5
-	title_box.offset_top = 34
+	title_box.offset_top = 18
 	title_box.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	title_box.add_theme_constant_override("separation", 2)
+	title_box.add_theme_constant_override("separation", -10)
 	add_child(title_box)
 	_title_box = title_box
-	_title = _outlined("무림유랑기", 48, Color(1.0, 0.92, 0.62), 8)
-	title_box.add_child(_title)
-	title_box.add_child(_outlined("~ 천하제일 허당전 ~", 24, Color(1, 0.75, 0.6), 6))
+	var title_row := HBoxContainer.new()
+	title_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	title_row.add_theme_constant_override("separation", 6)
+	title_box.add_child(title_row)
+	_title = UiKit.brush_label("무림유랑기", 76, Color8(30, 24, 26))
+	_title.add_theme_color_override("font_shadow_color", Color8(120, 104, 84, 110))
+	_title.add_theme_constant_override("shadow_offset_x", 2)
+	_title.add_theme_constant_override("shadow_offset_y", 2)
+	title_row.add_child(_title)
+	# 낙관(붉은 인장)
+	var seal := PanelContainer.new()
+	seal.add_theme_stylebox_override("panel", UiKit.box(UiKit.VERMILION, Color8(120, 30, 24), 1, 3))
+	seal.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var seal_text := UiKit.brush_label("유랑", 22, Color8(240, 226, 200))
+	seal.add_child(seal_text)
+	title_row.add_child(seal)
+	var sub := UiKit.brush_label("천하제일 허당전", 32, UiKit.VERMILION)
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title_box.add_child(sub)
 
 	var panel := UiKit.panel_container(10)
 	panel.anchor_left = 0.5
@@ -70,7 +86,7 @@ func _build() -> void:
 	for b in _buttons:
 		v.add_child(b)
 
-	_info = UiKit.label("", 12, Color(1, 0.9, 0.75))
+	_info = UiKit.label("", 12, Color8(60, 48, 44))
 	_info.anchor_left = 0.0
 	_info.anchor_right = 1.0
 	_info.anchor_top = 1.0
@@ -80,7 +96,7 @@ func _build() -> void:
 	_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(_info)
 
-	var ver := UiKit.label("프로토타입 v0.1", 12, Color(1, 1, 1, 0.5))
+	var ver := UiKit.label("프로토타입 v0.2", 12, Color8(60, 48, 44, 160))
 	ver.anchor_left = 1.0
 	ver.anchor_right = 1.0
 	ver.offset_left = -110
@@ -96,20 +112,9 @@ func _build() -> void:
 	add_child(_settings)
 
 
-func _outlined(text: String, size: int, color: Color, outline: int) -> Label:
-	var l := UiKit.label(text, size, color)
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.add_theme_color_override("font_outline_color", Color(0.24, 0.1, 0.16))
-	l.add_theme_constant_override("outline_size", outline)
-	l.add_theme_color_override("font_shadow_color", Color(0.1, 0.04, 0.08, 0.8))
-	l.add_theme_constant_override("shadow_offset_x", 2)
-	l.add_theme_constant_override("shadow_offset_y", 3)
-	return l
-
-
 func _process(delta: float) -> void:
 	_t += delta
-	_title.position.y = roundf(sin(_t * 2.0) * 2.0)
+	_title.modulate.a = 0.85 + 0.15 * sin(_t * 1.5)
 
 
 func _refresh_continue() -> void:

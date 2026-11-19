@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""무림유랑기 임시 픽셀아트 생성기.
+"""무림유랑기 픽셀아트 생성기 (v2: 진지한 무협풍).
 
 외부 에셋 없이 모든 프로토타입 그래픽을 코드로 생성한다.
 결과물은 전부 이 프로젝트의 독창적 창작물이며 상업적 이용에 제한이 없다.
 
-사용법 (프로젝트 루트에서):
-    python3 tools/gen_art.py
-필요 패키지: Pillow
+- 캐릭터: 32x48 셀, 4방향(하/좌/우/상) x 3프레임(정지/걸음1/걸음2)
+- 타일: 32x32, 차분한 먹색·황토 계열 팔레트
+- 배경: 수묵화 느낌의 640x360
+
+사용법 (프로젝트 루트에서):  python3 tools/gen_art.py      (필요: Pillow)
 """
 from __future__ import annotations
 
@@ -15,44 +17,46 @@ import random
 from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-T = 32  # 타일 크기
+T = 32          # 타일 크기
+CW, CH = 32, 48  # 캐릭터 셀 크기
 
-# ---------------------------------------------------------------- 팔레트
-OUT = (34, 26, 38, 255)
+# ---------------------------------------------------------------- 팔레트 (차분한 무협풍)
+OUT = (28, 22, 26, 255)
 CLEAR = (0, 0, 0, 0)
-SKIN = (248, 208, 164, 255)
-SKIN_D = (218, 164, 124, 255)
-BLUSH = (240, 150, 130, 255)
-EYE = (36, 28, 40, 255)
-WHITE = (250, 248, 240, 255)
+SKIN = (226, 186, 150, 255)
+SKIN_D = (190, 146, 116, 255)
+EYE = (24, 18, 22, 255)
 
-GRASS = (104, 174, 76, 255)
-GRASS_D = (76, 142, 60, 255)
-GRASS_L = (140, 200, 94, 255)
-DIRT = (204, 168, 112, 255)
-DIRT_D = (172, 134, 86, 255)
-DIRT_L = (222, 192, 140, 255)
-STONE = (168, 164, 158, 255)
-STONE_D = (124, 120, 118, 255)
-STONE_L = (200, 196, 188, 255)
-WOOD = (150, 96, 56, 255)
-WOOD_D = (104, 64, 40, 255)
-WOOD_L = (186, 128, 76, 255)
-LEAF = (60, 140, 70, 255)
-LEAF_D = (36, 100, 56, 255)
-LEAF_L = (100, 180, 84, 255)
-WATER = (70, 140, 210, 255)
-WATER_D = (50, 106, 180, 255)
-WATER_L = (150, 200, 240, 255)
-PLASTER = (238, 224, 196, 255)
-PLASTER_D = (210, 192, 160, 255)
-SAND = (226, 202, 150, 255)
-SAND_D = (200, 172, 120, 255)
+GRASS = (92, 124, 74, 255)
+GRASS_D = (70, 100, 60, 255)
+GRASS_L = (116, 146, 88, 255)
+DIRT = (158, 136, 104, 255)
+DIRT_D = (130, 110, 84, 255)
+DIRT_L = (178, 158, 124, 255)
+STONE = (140, 138, 132, 255)
+STONE_D = (104, 102, 100, 255)
+STONE_L = (172, 168, 160, 255)
+WOOD = (110, 74, 50, 255)
+WOOD_D = (74, 50, 36, 255)
+WOOD_L = (142, 100, 68, 255)
+PINE = (52, 92, 66, 255)
+PINE_D = (32, 62, 48, 255)
+PINE_L = (82, 120, 82, 255)
+BARK = (124, 78, 56, 255)
+WATER = (64, 104, 112, 255)
+WATER_D = (46, 80, 90, 255)
+WATER_L = (120, 156, 154, 255)
+PLASTER = (208, 198, 176, 255)
+PLASTER_D = (176, 164, 144, 255)
+SAND = (188, 170, 134, 255)
+SAND_D = (162, 144, 110, 255)
+PAPER = (226, 216, 192, 255)
+VERMILION = (168, 46, 36, 255)
 
-ROOFS = {
-    "red": ((196, 74, 60, 255), (150, 50, 46, 255), (226, 112, 90, 255)),
-    "blue": ((70, 86, 140, 255), (48, 58, 100, 255), (106, 124, 180, 255)),
-    "green": ((60, 132, 100, 255), (40, 96, 74, 255), (96, 170, 130, 255)),
+ROOFS = {  # (기본, 어두움, 밝음) — 먹빛 기와
+    "red": ((82, 82, 90, 255), (54, 54, 62, 255), (116, 116, 124, 255)),
+    "blue": ((60, 66, 84, 255), (38, 42, 56, 255), (92, 100, 120, 255)),
+    "green": ((70, 92, 84, 255), (46, 64, 58, 255), (100, 124, 112, 255)),
 }
 
 
@@ -61,7 +65,11 @@ def new(w, h, color=CLEAR):
 
 
 def rect(img, x0, y0, x1, y1, c):
-    """x0..x1, y0..y1 포함 사각형."""
+    """x0..x1, y0..y1 포함 사각형 (범위 밖은 자름)."""
+    if x0 > x1:
+        x0, x1 = x1, x0
+    if y0 > y1:
+        y0, y1 = y1, y0
     for y in range(max(0, y0), min(img.height, y1 + 1)):
         for x in range(max(0, x0), min(img.width, x1 + 1)):
             img.putpixel((x, y), c)
@@ -79,8 +87,15 @@ def circle(img, cx, cy, r, c):
                 px(img, x, y, c)
 
 
+def ellipse(img, cx, cy, rx, ry, c):
+    for y in range(cy - ry, cy + ry + 1):
+        for x in range(cx - rx, cx + rx + 1):
+            if ((x - cx) / max(rx, 0.5)) ** 2 + ((y - cy) / max(ry, 0.5)) ** 2 <= 1.0:
+                px(img, x, y, c)
+
+
 def outline(img, color=OUT):
-    """불투명 픽셀 주변의 투명 픽셀에 외곽선을 그린다."""
+    """불투명 픽셀 주변 투명 픽셀에 외곽선."""
     src = img.copy()
     w, h = img.size
     for y in range(h):
@@ -106,265 +121,307 @@ def save(img, rel):
     print("wrote", rel, img.size)
 
 
-# ---------------------------------------------------------------- 캐릭터
+def shade(c, f):
+    return tuple(max(0, min(255, int(v * f))) for v in c[:3]) + (255,)
+
+
+# ---------------------------------------------------------------- 캐릭터 (32x48)
 class Look:
     def __init__(self, **kw):
-        self.hair = (44, 34, 44, 255)
-        self.hair_l = (84, 66, 84, 255)
-        self.style = "topknot"  # topknot | bun | bald | hat | bandana
-        self.band = None  # 머리띠 색
-        self.top = (240, 236, 222, 255)
-        self.top_d = (196, 190, 176, 255)
-        self.belt = (60, 90, 170, 255)
-        self.pants = (60, 90, 170, 255)
-        self.pants_d = (44, 66, 130, 255)
-        self.shoes = (90, 60, 44, 255)
-        self.beard = None  # 수염 색
+        self.hair = (30, 26, 32, 255)
+        self.style = "topknot"     # topknot | bun | hat | bandana
+        self.band = None           # 머리띠 색
+        self.robe = (46, 58, 92, 255)
+        self.robe_d = (32, 40, 66, 255)
+        self.trim = (214, 206, 186, 255)   # 안깃/소매 끝
+        self.sash = (150, 40, 40, 255)
+        self.pants = (40, 40, 48, 255)
+        self.boots = (46, 34, 30, 255)
+        self.beard = None
         self.mustache = None
-        self.brows = None  # 눈썹 색 (None 이면 머리색)
-        self.wide = 0  # 몸통 추가 폭
-        self.skirt = False
-        self.hat = (40, 34, 40, 255)
+        self.brows = None
+        self.wide = 0
+        self.skirt = None          # 치마 색 (여성 한복)
+        self.hat = (26, 24, 28, 255)
         self.eyepatch = False
+        self.scar = False
+        self.long_robe = True      # 무릎 아래까지 오는 두루마기
         self.__dict__.update(kw)
 
 
 def draw_char(look: Look, facing: str, frame: int) -> Image.Image:
-    """facing: down/up/left. frame: 0=정지, 1/2=걷기."""
-    img = new(T, T)
-    bob = 1 if frame in (1, 2) else 0
-    w = look.wide
+    """facing: down/up/left. frame: 0=정지, 1/2=걷기. 발 바닥은 y=46."""
+    img = new(CW, CH)
     side = facing == "left"
+    w = look.wide
+    bob = -1 if frame in (1, 2) else 0
+    robe, robe_d = look.robe, look.robe_d
 
-    # 다리/신발
-    ly = 24
+    # --- 다리 / 신발 (짧은 상의면 허리 아래부터 바지)
+    lt = 38 if look.long_robe else 28
     if look.skirt:
-        rect(img, 9 - w, 23, 22 + w, 28, look.pants)
-        rect(img, 9 - w, 28, 22 + w, 28, look.pants_d)
-        lf = (11, 14) if not side else (12, 15)
-        rf = (17, 20) if not side else (16, 19)
-        l_off = -1 if frame == 1 else 0
-        r_off = -1 if frame == 2 else 0
-        rect(img, lf[0], 29 + l_off, lf[1], 30 + l_off, look.shoes)
-        rect(img, rf[0], 29 + r_off, rf[1], 30 + r_off, look.shoes)
+        sk = look.skirt
+        sway = {0: 0, 1: -1, 2: 1}[frame]
+        rect(img, 10 - w, 27, 21 + w, 44, sk)
+        for i in range(4):  # 아래로 퍼지는 치마
+            rect(img, 9 - w - (1 if i > 1 else 0) + sway, 38 + i * 2, 22 + w + (1 if i > 1 else 0) + sway, 39 + i * 2, sk)
+        rect(img, 18 + w, 28, 21 + w, 45, shade(sk, 0.8))
+        rect(img, 9 - w, 45, 22 + w, 45, shade(sk, 0.7))
+        rect(img, 12, 46, 14, 46, look.boots)
+        rect(img, 17, 46, 19, 46, look.boots)
     elif side:
-        # 옆모습: 다리가 앞뒤로 벌어짐
         if frame == 0:
-            rect(img, 13, ly, 18, 28, look.pants)
-            rect(img, 13, 29, 19, 30, look.shoes)
+            rect(img, 13, lt, 18, 43, look.pants)
+            rect(img, 12, 44, 18, 46, look.boots)
         else:
-            rect(img, 11, ly, 15, 28, look.pants_d)
-            rect(img, 16, ly, 20, 28, look.pants)
-            rect(img, 9, 29, 14, 30, look.shoes)
-            rect(img, 16, 29, 21, 30, look.shoes)
+            front, back = (9, 13), (17, 21)
+            if frame == 2:
+                front, back = back, front
+            rect(img, 13, lt, 18, 37, look.pants)
+            rect(img, back[0] + 1, 38, back[1], 43, shade(look.pants, 0.75))
+            rect(img, back[0], 44, back[1], 46, shade(look.boots, 0.8))
+            rect(img, front[0] + 1, 38, front[1], 43, look.pants)
+            rect(img, front[0], 44, front[1], 46, look.boots)
     else:
         l_off = -1 if frame == 1 else 0
         r_off = -1 if frame == 2 else 0
-        rect(img, 10 - w, ly, 15, 28 + l_off, look.pants)
-        rect(img, 16, ly, 21 + w, 28 + r_off, look.pants)
-        rect(img, 15, 26, 16, 28, CLEAR)
-        rect(img, 15, ly, 16, 25, look.pants_d)
-        rect(img, 10 - w, 29 + l_off, 14, 30 + l_off, look.shoes)
-        rect(img, 17, 29 + r_off, 21 + w, 30 + r_off, look.shoes)
+        rect(img, 11, lt, 14, 43 + l_off, look.pants)
+        rect(img, 17, lt, 20, 43 + r_off, look.pants)
+        if lt < 38:
+            rect(img, 11, lt, 20, lt + 3, look.pants)
+        rect(img, 10, 44 + l_off, 14, 46 + l_off, look.boots)
+        rect(img, 17, 44 + r_off, 21, 46 + r_off, look.boots)
 
-    by = -bob
-    # 몸통
-    if side:
-        rect(img, 11 - w // 2, 15 + by, 20 + w // 2, 23 + by, look.top)
-        rect(img, 11 - w // 2, 15 + by, 12 - w // 2, 23 + by, look.top_d)
-        rect(img, 11 - w // 2, 22 + by, 20 + w // 2, 23 + by, look.belt)
-        # 팔 (앞으로 흔들기)
-        sw = {0: 0, 1: 2, 2: -2}[frame]
-        rect(img, 14 + sw, 16 + by, 17 + sw, 21 + by, look.top_d)
-        rect(img, 14 + sw, 22 + by, 16 + sw, 23 + by, SKIN)
-    else:
-        rect(img, 9 - w, 15 + by, 22 + w, 23 + by, look.top)
-        rect(img, 9 - w, 15 + by, 10 - w, 23 + by, look.top_d)
-        rect(img, 21 + w, 15 + by, 22 + w, 23 + by, look.top_d)
-        if facing == "down":
-            # 옷깃 (V)
-            for i in range(4):
-                px(img, 13 + i, 15 + i + by, look.top_d)
-                px(img, 18 - i, 15 + i + by, look.top_d)
+    by = bob
+    # --- 아래 도포 자락
+    if look.long_robe and not look.skirt:
+        hem = 37
+        if side:
+            sway = {0: 0, 1: -1, 2: 1}[frame]
+            rect(img, 11 + sway, 28 + by, 20 + sway, hem, robe)
+            rect(img, 18 + sway, 28 + by, 20 + sway, hem, robe_d)
+            rect(img, 11 + sway, hem, 20 + sway, hem, robe_d)
         else:
-            rect(img, 15, 16 + by, 16, 21 + by, look.top_d)
-        rect(img, 9 - w, 22 + by, 22 + w, 23 + by, look.belt)
-        # 팔
-        la = {0: 0, 1: -1, 2: 1}[frame]
-        rect(img, 7 - w, 16 + by + la, 8 - w, 21 + by + la, look.top_d)
-        rect(img, 23 + w, 16 + by - la, 24 + w, 21 + by - la, look.top_d)
-        rect(img, 7 - w, 22 + by + la, 8 - w, 23 + by + la, SKIN)
-        rect(img, 23 + w, 22 + by - la, 24 + w, 23 + by - la, SKIN)
+            rect(img, 10 - w, 28 + by, 21 + w, hem, robe)
+            rect(img, 20 + w, 28 + by, 21 + w, hem, robe_d)
+            rect(img, 10 - w, hem, 21 + w, hem, robe_d)
+            if facing == "down":
+                rect(img, 15, 32, 16, hem, look.pants)  # 앞트임
+                rect(img, 14, 32, 14, hem, robe_d)
 
-    # 머리
-    hx0, hx1 = (10, 21)
-    hy0, hy1 = 4 + by, 14 + by
+    # --- 몸통
+    if side:
+        rect(img, 12, 17 + by, 19, 27 + by, robe)
+        rect(img, 18, 17 + by, 19, 27 + by, robe_d)
+        px(img, 12, 17 + by, CLEAR)
+        for i in range(5):  # 옷깃
+            px(img, 12 + i // 2, 17 + i + by, look.trim)
+        rect(img, 12, 26 + by, 19, 27 + by, look.sash)
+        if not look.skirt:
+            rect(img, 19, 27 + by, 20, 31 + by, look.sash)  # 띠 매듭 뒤로
+        sw = {0: 0, 1: 2, 2: -2}[frame]
+        rect(img, 14 + sw, 18 + by, 17 + sw, 27 + by, robe_d)  # 팔(소매)
+        rect(img, 14 + sw, 28 + by, 17 + sw, 28 + by, look.trim)
+        rect(img, 15 + sw, 29 + by, 16 + sw, 30 + by, SKIN)
+    else:
+        rect(img, 10 - w, 17 + by, 21 + w, 27 + by, robe)
+        rect(img, 20 + w, 17 + by, 21 + w, 27 + by, robe_d)
+        px(img, 10 - w, 17 + by, CLEAR)
+        px(img, 21 + w, 17 + by, CLEAR)
+        if facing == "down":
+            for i in range(6):  # 교차 옷깃 (좌임 아닌 우임)
+                px(img, 12 + i, 17 + i + by, look.trim)
+                px(img, 13 + i, 17 + i + by, look.trim)
+            for i in range(3):
+                px(img, 19 - i, 17 + i + by, look.trim)
+        else:
+            rect(img, 15, 18 + by, 16, 25 + by, robe_d)  # 등솔기
+        rect(img, 10 - w, 26 + by, 21 + w, 27 + by, look.sash)
+        if facing == "down" and not look.skirt:
+            rect(img, 17, 28 + by, 18, 32 + by, look.sash)  # 띠 자락
+        la = {0: 0, 1: -1, 2: 1}[frame]
+        for x0 in (7 - w, 22 + w):  # 넓은 소매
+            d = la if x0 < 16 else -la
+            rect(img, x0, 18 + by + d, x0 + 2, 28 + by + d, robe_d)
+            rect(img, x0, 28 + by + d, x0 + 2, 28 + by + d, look.trim)
+            rect(img, x0 + (1 if x0 < 16 else 0), 29 + by + d, x0 + (2 if x0 < 16 else 1), 30 + by + d, SKIN)
+
+    # --- 목 / 머리
+    rect(img, 15, 16 + by, 16, 16 + by, SKIN_D)
+    hx0, hx1 = (11, 18) if side else (12, 19)
+    hy0, hy1 = 6 + by, 15 + by
     rect(img, hx0, hy0, hx1, hy1, SKIN)
     for cx, cy in ((hx0, hy0), (hx1, hy0), (hx0, hy1), (hx1, hy1)):
         px(img, cx, cy, CLEAR)
     rect(img, hx0 + 1, hy1, hx1 - 1, hy1, SKIN_D)
 
-    hair, hair_l = look.hair, look.hair_l
-    if look.style != "bald":
+    hair = look.hair
+    hair_l = shade(hair, 1.6) if hair[0] < 120 else shade(hair, 1.08)
+    if look.style in ("topknot", "bun"):
         if facing == "up":
             rect(img, hx0, hy0, hx1, hy1 - 1, hair)
-            rect(img, hx0 + 2, hy0 + 1, hx0 + 5, hy0 + 2, hair_l)
         elif side:
-            rect(img, hx0, hy0, hx1, hy0 + 3, hair)
-            rect(img, hx0 + 5, hy0, hx1, hy0 + 8, hair)
-            rect(img, hx0 + 1, hy0, hx0 + 4, hy0 + 1, hair_l)
+            rect(img, hx0, hy0, hx1, hy0 + 2, hair)
+            rect(img, hx0 + 4, hy0, hx1, hy0 + 7, hair)
         else:
-            rect(img, hx0, hy0, hx1, hy0 + 3, hair)
-            rect(img, hx0, hy0 + 4, hx0 + 1, hy0 + 7, hair)
-            rect(img, hx1 - 1, hy0 + 4, hx1, hy0 + 7, hair)
-            rect(img, hx0 + 2, hy0, hx0 + 6, hy0 + 1, hair_l)
-    else:
-        rect(img, hx0 + 2, hy0, hx0 + 5, hy0 + 1, (255, 230, 196, 255))
-
+            rect(img, hx0, hy0, hx1, hy0 + 2, hair)
+            rect(img, hx0, hy0 + 3, hx0, hy0 + 6, hair)
+            rect(img, hx1, hy0 + 3, hx1, hy0 + 6, hair)
+        rect(img, hx0 + 1, hy0, hx0 + 3, hy0, hair_l)
     if look.style == "topknot":
-        tx = 14 if not side else 17
-        rect(img, tx, hy0 - 3, tx + 3, hy0 - 1, hair)
-        px(img, tx + 1, hy0 - 3, hair_l)
+        tx = 14 if not side else 15
+        rect(img, tx, hy0 - 4, tx + 3, hy0 - 1, hair)
+        rect(img, tx, hy0 - 1, tx + 3, hy0 - 1, look.band or (90, 70, 50, 255))
+        px(img, tx + 1, hy0 - 4, hair_l)
     elif look.style == "bun":
-        bx = 13 if not side else 17
+        bx = 13 if not side else 16
         rect(img, bx, hy0 - 3, bx + 5, hy0, hair)
-        rect(img, bx + 1, hy0 - 2, bx + 2, hy0 - 2, hair_l)
-        rect(img, bx + 2, hy0 - 1, bx + 3, hy0 - 1, (220, 180, 60, 255))  # 비녀
-    elif look.style == "hat":
-        rect(img, hx0 + 2, hy0 - 4, hx1 - 2, hy0 + 1, look.hat)
-        rect(img, hx0 - 4, hy0 + 2, hx1 + 4, hy0 + 2, look.hat)
-        rect(img, hx0 + 3, hy0 - 3, hx0 + 5, hy0 - 3, (90, 80, 90, 255))
+        rect(img, bx - 1, hy0 - 2, bx + 6, hy0 - 2, (200, 170, 90, 255))  # 비녀
+    elif look.style == "hat":  # 갓
+        rect(img, hx0 + 1, hy0 - 5, hx1 - 1, hy0 + 1, look.hat)
+        rect(img, hx0 + 2, hy0 - 3, hx1 - 2, hy0 - 2, shade(look.hat, 1.8))
+        rect(img, hx0 - 5, hy0 + 2, hx1 + 5, hy0 + 2, look.hat)
+        rect(img, hx0 - 4, hy0 + 1, hx1 + 4, hy0 + 1, shade(look.hat, 1.5))
+        if facing != "up":
+            px(img, hx0 + 1, hy0 + 7, look.hat)  # 갓끈
+            px(img, hx1 - 1, hy0 + 7, look.hat)
+        else:
+            rect(img, hx0, hy0 + 3, hx1, hy1 - 1, look.hair)
     elif look.style == "bandana":
         rect(img, hx0, hy0, hx1, hy0 + 3, look.hat)
-        rect(img, hx0 + 2, hy0 + 1, hx0 + 3, hy0 + 1, (230, 220, 200, 255))
-        if facing != "down":
-            kx = hx0 - 2 if side else 15
-            rect(img, kx + (8 if side else 0), hy0 + 3, kx + 10 if side else kx + 2, hy0 + 5, look.hat)
+        rect(img, hx0 + 1, hy0 + 1, hx0 + 2, hy0 + 1, shade(look.hat, 1.4))
+        if facing == "up":
+            rect(img, hx0, hy0 + 4, hx1, hy1 - 1, look.hair)
+            rect(img, 15, hy0 + 4, 16, hy0 + 8, look.hat)
+        elif side:
+            rect(img, hx1 + 1, hy0 + 2, hx1 + 2, hy0 + 6, look.hat)
 
     if look.band:
         rect(img, hx0, hy0 + 3, hx1, hy0 + 3, look.band)
         if facing == "up":
-            rect(img, 15, hy0 + 4, 15, hy0 + 7, look.band)
-            rect(img, 17, hy0 + 4, 17, hy0 + 8, look.band)
+            px(img, 15, hy0 + 4, look.band)
+            rect(img, 15, hy0 + 5, 15, hy0 + 9, look.band)
+            rect(img, 16, hy0 + 4, 16, hy0 + 8, look.band)
         elif side:
-            rect(img, hx0, hy0 + 3, hx0 + 4, hy0 + 3, hair)
-            px(img, hx1 + 1, hy0 + 4, look.band)
+            px(img, hx1 + 1, hy0 + 3, look.band)
+            px(img, hx1 + 2, hy0 + 4, look.band)
             px(img, hx1 + 2, hy0 + 5, look.band)
-            px(img, hx1 + 2, hy0 + 6, look.band)
 
-    # 얼굴
-    brow = look.brows or hair
+    brow = look.brows or look.hair
     if facing == "down":
-        ey = hy0 + 6
-        rect(img, 13, ey, 13, ey + 1, EYE)
-        rect(img, 18, ey, 18, ey + 1, EYE)
-        rect(img, 12, ey - 1, 14, ey - 1, brow)
-        rect(img, 17, ey - 1, 19, ey - 1, brow)
-        px(img, 12, ey + 2, BLUSH)
-        px(img, 19, ey + 2, BLUSH)
-        rect(img, 15, ey + 3, 16, ey + 3, (190, 100, 90, 255))
+        ey = hy0 + 5
+        rect(img, 13, ey, 14, ey, EYE)  # 가늘고 날카로운 눈
+        rect(img, 17, ey, 18, ey, EYE)
+        px(img, 14, ey - 1, brow)
+        px(img, 13, ey - 2, brow)
+        px(img, 17, ey - 1, brow)
+        px(img, 18, ey - 2, brow)
+        rect(img, 15, ey + 3, 16, ey + 3, SKIN_D)
         if look.eyepatch:
-            rect(img, 17, ey - 1, 19, ey + 1, EYE)
-            rect(img, hx0, ey - 2, hx1, ey - 2, EYE)
+            rect(img, 16, ey - 1, 19, ey + 1, EYE)
+            rect(img, hx0, ey - 2, hx0 + 3, ey - 2, EYE)
+        if look.scar:
+            px(img, 13, ey + 1, (150, 80, 70, 255))
+            px(img, 14, ey + 2, (150, 80, 70, 255))
     elif side:
-        ey = hy0 + 6
-        rect(img, 11, ey, 11, ey + 1, EYE)
-        rect(img, 10, ey - 1, 12, ey - 1, brow)
-        px(img, 12, ey + 2, BLUSH)
+        ey = hy0 + 5
+        rect(img, 12, ey, 13, ey, EYE)
+        px(img, 13, ey - 1, brow)
         px(img, hx0 - 1, ey + 1, SKIN)  # 코
-        rect(img, 11, ey + 3, 12, ey + 3, (190, 100, 90, 255))
+        px(img, 12, ey + 3, SKIN_D)
     if look.mustache and facing != "up":
         if side:
-            rect(img, 9, hy0 + 8, 13, hy0 + 8, look.mustache)
+            rect(img, 10, hy0 + 7, 13, hy0 + 7, look.mustache)
         else:
-            rect(img, 12, hy0 + 8, 19, hy0 + 8, look.mustache)
-            px(img, 11, hy0 + 9, look.mustache)
-            px(img, 20, hy0 + 9, look.mustache)
+            rect(img, 13, hy0 + 7, 18, hy0 + 7, look.mustache)
+            px(img, 12, hy0 + 8, look.mustache)
+            px(img, 19, hy0 + 8, look.mustache)
     if look.beard and facing != "up":
+        b = look.beard
         if side:
-            rect(img, 9, hy0 + 9, 14, hy1 + 5, look.beard)
-            rect(img, 10, hy1 + 6, 13, hy1 + 7, look.beard)
+            rect(img, 10, hy0 + 7, 13, hy1 + 3, b)
+            rect(img, 11, hy1 + 4, 13, hy1 + 7, b)
         else:
-            rect(img, 12, hy0 + 9, 19, hy1 + 5, look.beard)
-            rect(img, 13, hy1 + 6, 18, hy1 + 7, look.beard)
-            rect(img, 14, hy1 + 8, 17, hy1 + 8, look.beard)
-            rect(img, 15, hy0 + 9, 16, hy0 + 9, (190, 100, 90, 255))
+            rect(img, 12, hy0 + 7, 19, hy1 + 2, b)
+            rect(img, 13, hy1 + 3, 18, hy1 + 5, b)
+            rect(img, 14, hy1 + 6, 17, hy1 + 8, b)
+            rect(img, 15, hy1 + 9, 16, hy1 + 10, b)
+            rect(img, 15, hy0 + 8, 16, hy0 + 8, SKIN_D)
 
     return outline(img)
 
 
 def char_sheet(look: Look) -> Image.Image:
-    """4행(하/좌/우/상) x 3열(정지/걸음1/걸음2)."""
-    sheet = new(T * 3, T * 4)
+    sheet = new(CW * 3, CH * 4)
     for row, facing in enumerate(["down", "left", "right", "up"]):
         for f in range(3):
             if facing == "right":
                 fr = draw_char(look, "left", f).transpose(Image.FLIP_LEFT_RIGHT)
             else:
                 fr = draw_char(look, facing, f)
-            sheet.paste(fr, (f * T, row * T), fr)
+            sheet.paste(fr, (f * CW, row * CH), fr)
     return sheet
 
 
 LOOKS = {
-    "doyun": Look(band=(214, 52, 52, 255)),
+    "doyun": Look(band=(160, 36, 36, 255)),
     "master": Look(
-        hair=(214, 214, 220, 255), hair_l=(250, 250, 255, 255), brows=(250, 250, 255, 255),
-        beard=(238, 238, 244, 255), top=(120, 132, 160, 255), top_d=(90, 100, 130, 255),
-        belt=(50, 44, 60, 255), pants=(80, 86, 110, 255), pants_d=(60, 66, 88, 255),
+        hair=(222, 222, 216, 255), brows=(240, 240, 236, 255), beard=(232, 232, 226, 255),
+        robe=(186, 186, 180, 255), robe_d=(146, 148, 146, 255), trim=(92, 84, 78, 255),
+        sash=(70, 60, 56, 255), pants=(96, 98, 104, 255),
     ),
     "villager": Look(
-        style="bun", hair=(74, 48, 40, 255), hair_l=(110, 74, 60, 255), skirt=True,
-        top=(250, 222, 110, 255), top_d=(220, 186, 80, 255), belt=(200, 60, 80, 255),
-        pants=(200, 64, 86, 255), pants_d=(160, 44, 66, 255), shoes=(240, 236, 230, 255),
+        style="bun", hair=(34, 28, 30, 255), robe=(146, 166, 142, 255), robe_d=(116, 136, 116, 255),
+        trim=(236, 228, 210, 255), sash=(150, 52, 60, 255), skirt=(54, 62, 96, 255),
+        long_robe=False, boots=(220, 214, 200, 255),
     ),
     "merchant": Look(
-        style="hat", wide=2, mustache=(44, 34, 44, 255), top=(110, 160, 96, 255),
-        top_d=(80, 124, 70, 255), belt=(170, 120, 50, 255), pants=(130, 96, 70, 255),
-        pants_d=(100, 70, 50, 255),
+        style="hat", wide=2, mustache=(30, 26, 32, 255), robe=(140, 108, 70, 255),
+        robe_d=(108, 80, 52, 255), trim=(220, 210, 186, 255), sash=(60, 84, 70, 255),
+        pants=(80, 66, 54, 255),
     ),
     "bandit": Look(
-        style="bandana", hat=(150, 40, 40, 255), wide=1, eyepatch=True,
-        mustache=(54, 40, 40, 255), top=(140, 104, 70, 255), top_d=(104, 74, 50, 255),
-        belt=(60, 50, 40, 255), pants=(70, 70, 76, 255), pants_d=(50, 50, 56, 255),
+        style="bandana", hat=(110, 36, 36, 255), wide=1, eyepatch=True, scar=True,
+        mustache=(40, 30, 30, 255), robe=(110, 82, 56, 255), robe_d=(82, 60, 42, 255),
+        trim=(150, 130, 100, 255), sash=(52, 44, 38, 255), pants=(64, 62, 66, 255),
+        long_robe=False,
     ),
 }
 
 
 def draw_scarecrow() -> Image.Image:
-    img = new(T, T)
-    rect(img, 15, 12, 16, 30, WOOD)  # 기둥
-    rect(img, 6, 15, 25, 16, WOOD)  # 가로대
-    rect(img, 10, 14, 21, 24, (176, 90, 70, 255))  # 셔츠
-    rect(img, 13, 18, 15, 20, (90, 120, 170, 255))  # 덧댄 천
-    rect(img, 10, 23, 21, 24, (130, 70, 56, 255))
-    for x in (5, 26):
-        rect(img, x, 14, x, 17, (230, 200, 90, 255))  # 지푸라기 손
-    rect(img, 11, 4, 20, 13, (226, 204, 150, 255))  # 자루 머리
-    rect(img, 13, 7, 14, 8, EYE)
-    px(img, 18, 7, EYE)
-    px(img, 17, 8, EYE)
-    px(img, 19, 8, EYE)  # X 눈
-    px(img, 18, 9, EYE)
-    rect(img, 13, 11, 18, 11, (150, 80, 70, 255))  # 꿰맨 입
-    for x in (14, 16, 18):
-        px(img, x, 10, (150, 80, 70, 255))
-    rect(img, 8, 3, 23, 4, (220, 180, 80, 255))  # 밀짚모자
-    rect(img, 11, 0, 20, 3, (230, 196, 96, 255))
-    rect(img, 11, 2, 20, 2, (196, 60, 60, 255))
+    img = new(CW, CH)
+    rect(img, 15, 14, 16, 46, WOOD)
+    rect(img, 15, 14, 15, 46, WOOD_L)
+    rect(img, 5, 20, 26, 21, WOOD)
+    rect(img, 9, 19, 22, 34, (120, 96, 70, 255))  # 해진 도포
+    rect(img, 9, 34, 22, 34, (96, 74, 54, 255))
+    for x in (10, 13, 17, 20):
+        px(img, x, 35, (120, 96, 70, 255))
+    rect(img, 12, 24, 14, 27, (84, 92, 110, 255))  # 덧댄 천
+    rect(img, 9, 28, 22, 29, (70, 56, 44, 255))
+    for x in (4, 27):
+        rect(img, x, 19, x, 23, (200, 176, 110, 255))
+    rect(img, 11, 9, 20, 18, (204, 186, 140, 255))  # 자루 머리
+    rect(img, 13, 12, 14, 12, EYE)
+    rect(img, 17, 12, 18, 12, EYE)
+    rect(img, 13, 16, 18, 16, (120, 80, 64, 255))
+    for x in (14, 16):
+        px(img, x, 15, (120, 80, 64, 255))
+    # 삿갓
+    for i in range(6):
+        rect(img, 15 - i * 2, 3 + i, 16 + i * 2, 3 + i, (178, 150, 96, 255) if i % 2 == 0 else (156, 128, 80, 255))
+    rect(img, 4, 9, 27, 9, (130, 104, 66, 255))
     return outline(img)
 
 
 # ---------------------------------------------------------------- 타일
-rng = random.Random(42)
-
-
 def grass_base(seed=0):
     r = random.Random(seed)
     img = new(T, T, GRASS)
-    for _ in range(18):
+    for _ in range(16):
         x, y = r.randrange(1, 31), r.randrange(2, 31)
-        c = GRASS_D if r.random() < 0.6 else GRASS_L
+        c = GRASS_D if r.random() < 0.65 else GRASS_L
         px(img, x, y, c)
         px(img, x - 1, y - 1, c)
         px(img, x + 1, y - 1, c)
@@ -374,9 +431,9 @@ def grass_base(seed=0):
 def tile_flowers():
     img = grass_base(1)
     r = random.Random(7)
-    for c in ((236, 90, 90, 255), (250, 220, 90, 255), (250, 250, 250, 255), (236, 90, 90, 255)):
+    for c in ((186, 90, 80, 255), (210, 190, 120, 255), (230, 224, 210, 255), (186, 90, 80, 255)):
         x, y = r.randrange(3, 29), r.randrange(3, 29)
-        px(img, x, y, (250, 236, 120, 255))
+        px(img, x, y, (226, 206, 130, 255))
         for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
             px(img, x + dx, y + dy, c)
     return img
@@ -387,8 +444,7 @@ def tile_dirt(seed=3):
     img = new(T, T, DIRT)
     for _ in range(14):
         x, y = r.randrange(0, 31), r.randrange(0, 31)
-        c = DIRT_D if r.random() < 0.6 else DIRT_L
-        rect(img, x, y, x + 1, y, c)
+        rect(img, x, y, x + 1, y, DIRT_D if r.random() < 0.6 else DIRT_L)
     return img
 
 
@@ -397,7 +453,7 @@ def tile_sand():
     img = new(T, T, SAND)
     for _ in range(16):
         x, y = r.randrange(0, 31), r.randrange(0, 31)
-        px(img, x, y, SAND_D if r.random() < 0.7 else (240, 222, 180, 255))
+        px(img, x, y, SAND_D if r.random() < 0.7 else (204, 188, 154, 255))
     return img
 
 
@@ -414,21 +470,19 @@ def tile_stone_floor():
 
 
 def tile_tree():
+    """소나무."""
     img = grass_base(4)
     top = new(T, T)
-    rect(top, 13, 22, 18, 30, WOOD)
-    rect(top, 13, 22, 14, 30, WOOD_D)
-    circle(top, 16, 12, 12, LEAF_D)
-    circle(top, 15, 11, 10, LEAF)
-    circle(top, 12, 8, 4, LEAF_L)
-    r = random.Random(5)
-    for _ in range(10):
-        x, y = r.randrange(6, 26), r.randrange(4, 20)
-        if top.getpixel((x, y))[3]:
-            px(top, x, y, LEAF_D)
+    rect(top, 14, 18, 17, 30, BARK)
+    rect(top, 14, 18, 14, 30, shade(BARK, 0.75))
+    px(top, 16, 24, shade(BARK, 0.7))
+    rect(top, 17, 15, 20, 16, BARK)  # 가지
+    for cx, cy, rx, ry in ((16, 6, 7, 3), (11, 11, 7, 3), (21, 12, 7, 3), (15, 17, 9, 3)):
+        ellipse(top, cx, cy, rx, ry, PINE_D)
+        ellipse(top, cx - 1, cy - 1, rx - 1, ry - 1, PINE)
+        rect(top, cx - rx + 2, cy - ry + 1, cx - 1, cy - ry + 1, PINE_L)
     outline(top)
-    # 그림자
-    rect(img, 9, 29, 23, 30, GRASS_D)
+    rect(img, 8, 29, 24, 30, GRASS_D)
     img.alpha_composite(top)
     return img
 
@@ -436,11 +490,9 @@ def tile_tree():
 def tile_bush():
     img = grass_base(6)
     top = new(T, T)
-    circle(top, 16, 19, 10, LEAF_D)
-    circle(top, 15, 18, 8, LEAF)
-    circle(top, 12, 15, 3, LEAF_L)
-    px(top, 20, 14, (236, 90, 90, 255))
-    px(top, 10, 21, (236, 90, 90, 255))
+    ellipse(top, 16, 20, 11, 8, PINE_D)
+    ellipse(top, 15, 19, 9, 6, PINE)
+    rect(top, 9, 15, 14, 15, PINE_L)
     outline(top)
     img.alpha_composite(top)
     return img
@@ -449,10 +501,10 @@ def tile_bush():
 def tile_rock():
     img = grass_base(8)
     top = new(T, T)
-    circle(top, 16, 18, 10, STONE_D)
-    circle(top, 15, 17, 8, STONE)
-    circle(top, 12, 14, 3, STONE_L)
-    rect(top, 6, 27, 26, 31, CLEAR)
+    ellipse(top, 16, 19, 11, 9, STONE_D)
+    ellipse(top, 15, 18, 9, 7, STONE)
+    rect(top, 10, 14, 15, 14, STONE_L)
+    rect(top, 18, 20, 22, 20, STONE_D)
     outline(top)
     img.alpha_composite(top)
     return img
@@ -475,7 +527,7 @@ def tile_fence():
 def tile_water(seed=0):
     img = new(T, T, WATER)
     r = random.Random(11 + seed)
-    for _ in range(5):
+    for _ in range(4):
         x, y = r.randrange(2, 24), r.randrange(2, 30)
         rect(img, x, y, x + 5, y, WATER_L)
         rect(img, x + 1, y + 1, x + 4, y + 1, WATER_D)
@@ -494,7 +546,7 @@ def tile_wall(window=False):
     rect(img, 3, 4, 28, 5, PLASTER_D)
     if window:
         rect(img, 8, 8, 23, 21, WOOD_D)
-        rect(img, 10, 10, 21, 19, (250, 236, 200, 255))
+        rect(img, 10, 10, 21, 19, (226, 214, 184, 255))
         for x in (13, 15, 18):
             rect(img, x, 10, x, 19, WOOD)
         rect(img, 10, 14, 21, 15, WOOD)
@@ -508,25 +560,26 @@ def tile_door():
     rect(img, 16, 8, 22, 31, WOOD)
     rect(img, 9, 8, 9, 31, WOOD_L)
     rect(img, 16, 8, 16, 31, WOOD_L)
-    px(img, 14, 20, (230, 200, 90, 255))
-    px(img, 17, 20, (230, 200, 90, 255))
+    px(img, 14, 20, (190, 160, 80, 255))
+    px(img, 17, 20, (190, 160, 80, 255))
     return img
 
 
 def tile_roof(color, eave=False):
     base, dark, light = ROOFS[color]
     img = new(T, T, base)
+    for x0 in range(0, 32, 6):  # 세로 기와골
+        rect(img, x0, 0, x0, 31, dark)
+        rect(img, x0 + 2, 0, x0 + 2, 31, light)
     for y0 in range(0, 32, 8):
-        rect(img, 0, y0 + 6, 31, y0 + 7, dark)
-        for x0 in range(0, 32, 8):
-            rect(img, x0 + 1, y0 + 1, x0 + 3, y0 + 1, light)
-            rect(img, x0 + 7, y0, x0 + 7, y0 + 7, dark)
+        rect(img, 0, y0 + 7, 31, y0 + 7, dark)
     if eave:
-        rect(img, 0, 22, 31, 25, dark)
-        rect(img, 0, 22, 31, 22, light)
-        rect(img, 0, 26, 31, 31, (60, 44, 40, 255))  # 처마 그늘
-        for x in range(1, 32, 6):
-            rect(img, x, 26, x + 2, 28, WOOD_D)
+        rect(img, 0, 21, 31, 24, dark)
+        for x0 in range(0, 32, 6):  # 막새
+            rect(img, x0 + 1, 22, x0 + 3, 23, light)
+        rect(img, 0, 25, 31, 31, (44, 34, 32, 255))  # 처마 그늘
+        for x in range(1, 32, 5):
+            rect(img, x, 25, x + 1, 28, WOOD_D)  # 서까래
     else:
         rect(img, 0, 0, 31, 1, dark)
     return img
@@ -559,11 +612,11 @@ def tile_stone_wall():
 def tile_jar():
     img = tile_dirt(13)
     top = new(T, T)
-    circle(top, 16, 20, 9, (140, 80, 60, 255))
-    circle(top, 14, 18, 3, (180, 110, 80, 255))
-    rect(top, 11, 8, 20, 11, (120, 66, 50, 255))
-    rect(top, 12, 8, 19, 8, (70, 40, 34, 255))
-    rect(top, 9, 18, 23, 18, (110, 60, 46, 255))
+    ellipse(top, 16, 20, 9, 9, (96, 66, 50, 255))
+    ellipse(top, 13, 17, 3, 3, (128, 92, 68, 255))
+    rect(top, 11, 8, 20, 11, (84, 56, 44, 255))
+    rect(top, 12, 8, 19, 8, (50, 34, 28, 255))
+    rect(top, 8, 18, 24, 18, (76, 50, 40, 255))
     outline(top)
     img.alpha_composite(top)
     return img
@@ -577,7 +630,7 @@ def tile_post():
     rect(top, 18, 4, 19, 29, WOOD_D)
     rect(top, 6, 11, 25, 13, WOOD_D)
     rect(top, 6, 19, 25, 21, WOOD_D)
-    rect(top, 14, 7, 17, 9, (196, 60, 60, 255))
+    rect(top, 14, 7, 17, 9, VERMILION)
     outline(top)
     img.alpha_composite(top)
     return img
@@ -603,8 +656,8 @@ def tile_lantern():
     top = new(T, T)
     rect(top, 14, 18, 17, 29, STONE_D)
     rect(top, 10, 27, 21, 29, STONE)
-    rect(top, 11, 8, 20, 17, (230, 120, 60, 255))
-    rect(top, 13, 10, 18, 15, (255, 220, 120, 255))
+    rect(top, 11, 8, 20, 17, STONE)
+    rect(top, 13, 10, 18, 15, (232, 190, 110, 255))
     rect(top, 9, 5, 22, 7, STONE_D)
     rect(top, 13, 3, 18, 4, STONE_D)
     outline(top)
@@ -651,102 +704,123 @@ def build_tileset():
     save(sheet, "assets/tilesets/cheongpung_tiles.png")
 
 
-# ---------------------------------------------------------------- 배경
+# ---------------------------------------------------------------- 수묵화 배경
 def lerp(a, b, t):
     return tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(3)) + (255,)
 
 
-def sky(img, top, bottom, bands=10, height=None):
-    h = height or img.height
-    for y in range(h):
-        t = int(y / h * bands) / bands
+def gradient(img, top, bottom, y0, y1, bands=12):
+    for y in range(y0, y1):
+        t = int((y - y0) / max(1, y1 - y0) * bands) / bands
         rect(img, 0, y, img.width - 1, y, lerp(top, bottom, t))
 
 
-def mountains(img, base_y, amp, color, seed, step=4):
+def ridge(img, base_y, amp, color, seed, step=6, mist=None, mist_h=6):
+    """산 능선. mist 가 주어지면 산 아래쪽을 안개색으로 흐린다."""
     r = random.Random(seed)
     w = img.width
-    hgt = base_y
+    h = base_y
     target = base_y
-    for x in range(0, w):
+    tops = []
+    for x in range(w):
         if x % step == 0:
             target = base_y - r.randint(0, amp)
-        hgt += (target > hgt) - (target < hgt)
-        rect(img, x, hgt, x, img.height - 1, color)
+        h += (target > h) - (target < h)
+        tops.append(h)
+        rect(img, x, h, x, img.height - 1, color)
+    if mist:
+        for x, t in enumerate(tops):
+            for i in range(mist_h):
+                y = base_y + 4 + i
+                if y >= t and r.random() < 0.35 + i * 0.1:
+                    px(img, x, y, mist)
+            rect(img, x, base_y + 4 + mist_h, x, base_y + 4 + mist_h + 3, mist)
+
+
+def pine_silhouette(img, x, y, size, color):
+    rect(img, x, y, x + 1, y + size * 3, color)
+    for i, (dx, wdt) in enumerate(((2, size * 2), (-size, size * 2), (1, size * 2 + 2))):
+        cy = y + i * size
+        rect(img, x + dx - wdt // 2, cy, x + dx + wdt // 2, cy + 1, color)
+        rect(img, x + dx - wdt // 2 + 1, cy - 1, x + dx + wdt // 2 - 1, cy - 1, color)
 
 
 def build_title_bg():
-    img = new(320, 180)
-    sky(img, (250, 180, 110), (180, 90, 130), bands=12, height=120)
-    rect(img, 0, 120, 319, 179, (90, 60, 100, 255))
-    circle(img, 236, 70, 22, (255, 226, 150, 255))
-    circle(img, 236, 70, 18, (255, 244, 200, 255))
-    for y, x0, x1 in ((40, 20, 90), (44, 30, 110), (60, 160, 210), (30, 250, 300)):
-        rect(img, x0, y, x1, y + 1, (255, 214, 180, 255))
-    mountains(img, 110, 40, (150, 90, 140, 255), 1, 5)
-    mountains(img, 130, 34, (110, 66, 116, 255), 2, 4)
-    mountains(img, 152, 22, (70, 44, 84, 255), 3, 3)
-    # 절벽 위 정자 실루엣
-    sil = (44, 28, 56, 255)
-    rect(img, 30, 112, 70, 179, sil)
-    rect(img, 36, 90, 38, 112, sil)
-    rect(img, 62, 90, 64, 112, sil)
-    rect(img, 30, 84, 70, 89, sil)
-    for i in range(6):
-        rect(img, 26 - i, 84 + i // 2, 74 + i, 84 + i // 2, sil)
-    rect(img, 40, 76, 60, 84, sil)
-    rect(img, 48, 70, 52, 76, sil)
-    # 소나무
-    for tx in (90, 280, 300):
-        rect(img, tx, 120, tx + 2, 179, sil)
-        for i, wdt in enumerate((14, 18, 12)):
-            rect(img, tx + 1 - wdt // 2, 120 + i * 10, tx + 1 + wdt // 2, 124 + i * 10, sil)
-    rect(img, 0, 168, 319, 179, (36, 22, 46, 255))
+    img = new(320, 180, PAPER)
+    gradient(img, (232, 222, 198), (214, 200, 172), 0, 180, bands=10)
+    circle(img, 236, 58, 18, (178, 58, 42, 255))  # 붉은 해
+    ridge(img, 92, 34, (192, 184, 168, 255), 1, 7, mist=(222, 212, 188, 255))
+    ridge(img, 118, 30, (150, 144, 134, 255), 2, 5, mist=(214, 202, 176, 255))
+    ridge(img, 144, 24, (96, 92, 92, 255), 3, 4, mist=(200, 188, 162, 255), mist_h=4)
+    ink = (40, 36, 40, 255)
+    # 절벽과 정자
+    for y in range(100, 180):
+        x1 = 70 - (180 - y) // 6
+        rect(img, 0, y, x1, y, ink)
+    rect(img, 34, 74, 36, 100, ink)
+    rect(img, 58, 74, 60, 100, ink)
+    rect(img, 30, 70, 64, 73, ink)
+    for i in range(5):
+        rect(img, 26 - i, 70 - i // 2, 68 + i, 70 - i // 2, ink)
+    rect(img, 40, 62, 54, 68, ink)
+    rect(img, 46, 57, 48, 61, ink)
+    pine_silhouette(img, 72, 92, 6, ink)
+    pine_silhouette(img, 292, 118, 5, (70, 66, 70, 255))
+    rect(img, 0, 174, 319, 179, ink)
     save(scale(img, 2), "assets/backgrounds/title_bg.png")
 
 
 def build_battle_bg():
-    """640x360 전투 배경. 지면 그림자 위치는 battle_scene.gd 의 배치와 맞춘다."""
+    """640x360 전투 배경. 발 위치 그림자는 battle_scene.gd 배치(플레이어 180,226 / 적 460,214)와 맞춘다."""
     img = new(320, 180)
-    sky(img, (120, 180, 240), (200, 230, 250), bands=8, height=90)
-    for y, x0, x1 in ((18, 30, 80), (22, 40, 100), (34, 200, 260), (12, 230, 300)):
-        rect(img, x0, y, x1, y + 3, (250, 252, 255, 255))
-    mountains(img, 72, 30, (140, 170, 200, 255), 4, 5)
-    mountains(img, 86, 20, (96, 140, 120, 255), 5, 4)
-    rect(img, 0, 90, 319, 179, SAND)
+    gradient(img, (176, 178, 172), (224, 210, 180), 0, 92, bands=8)
+    circle(img, 260, 30, 10, (200, 120, 90, 255))
+    ridge(img, 64, 26, (170, 168, 160, 255), 4, 7, mist=(214, 204, 180, 255))
+    ridge(img, 80, 20, (120, 120, 116, 255), 5, 5, mist=(206, 194, 168, 255), mist_h=3)
+    rect(img, 0, 90, 319, 179, (150, 128, 98, 255))
     r = random.Random(3)
-    for _ in range(160):
+    for _ in range(220):
         x, y = r.randrange(0, 320), r.randrange(92, 180)
-        px(img, x, y, SAND_D)
-    rect(img, 0, 90, 319, 92, GRASS_D)
-    for x in range(0, 320, 40):
-        rect(img, x + 6, 76, x + 9, 92, WOOD)
-        rect(img, x, 80, x + 40, 81, WOOD_L)
-    for cx, cy in ((90, 112), (230, 106)):
-        for y in range(cy - 5, cy + 6):
-            for x in range(cx - 30, cx + 31):
-                if ((x - cx) / 30) ** 2 + ((y - cy) / 5) ** 2 <= 1:
-                    px(img, x, y, SAND_D)
+        px(img, x, y, (128, 108, 82, 255) if r.random() < 0.7 else (170, 148, 116, 255))
+    rect(img, 0, 90, 319, 91, (96, 84, 66, 255))
+    for x in (20, 300):  # 돌기둥
+        rect(img, x, 50, x + 9, 92, (96, 92, 90, 255))
+        rect(img, x, 50, x + 2, 92, (126, 122, 118, 255))
+        rect(img, x - 2, 48, x + 11, 50, (70, 66, 66, 255))
+    for x in range(40, 290, 46):  # 깃대
+        rect(img, x, 70, x, 91, WOOD_D)
+        rect(img, x + 1, 70, x + 6, 75, VERMILION)
+    for cx, cy in ((90, 113), (230, 107)):
+        ellipse(img, cx, cy, 26, 4, (118, 98, 74, 255))
     save(scale(img, 2), "assets/backgrounds/battle_training.png")
 
 
-# ---------------------------------------------------------------- UI
+# ---------------------------------------------------------------- UI / 효과
 def build_ui():
-    # 방향키
     for name, rot in (("up", 0), ("right", 270), ("down", 180), ("left", 90)):
         img = new(40, 40)
-        rect(img, 2, 2, 37, 37, (40, 34, 56, 170))
-        rect(img, 2, 2, 37, 3, (255, 255, 255, 60))
+        rect(img, 2, 2, 37, 37, (24, 20, 22, 170))
+        rect(img, 2, 2, 37, 2, (200, 170, 110, 120))
         for i in range(10):
-            rect(img, 20 - i, 12 + i, 19 + i, 12 + i, (250, 236, 200, 230))
+            rect(img, 20 - i, 12 + i, 19 + i, 12 + i, (226, 216, 192, 230))
         img = img.rotate(rot)
         save(img, f"assets/ui/dpad_{name}.png")
-    for name, col in (("a", (200, 70, 60)), ("b", (70, 90, 160))):
+    for name, col in (("a", (150, 40, 32)), ("b", (52, 50, 58))):
         img = new(52, 52)
-        circle(img, 26, 26, 24, (30, 24, 40, 200))
-        circle(img, 26, 26, 21, col + (220,))
-        circle(img, 22, 20, 6, tuple(min(255, c + 50) for c in col) + (220,))
+        circle(img, 26, 26, 24, (24, 20, 22, 210))
+        circle(img, 26, 26, 21, col + (230,))
+        circle(img, 26, 26, 19, tuple(min(255, c + 20) for c in col) + (230,))
         save(img, f"assets/ui/btn_{name}.png")
+    # 베기 효과 (전투)
+    img = new(64, 64)
+    for i in range(3):
+        for t in range(48):
+            x = 8 + t
+            y = 52 - t + i * 5 - int(((t - 24) / 24) ** 2 * 6)
+            a = int(255 * (1 - abs(t - 24) / 26))
+            px(img, x, y, (255, 250, 236, a))
+            px(img, x, y + 1, (230, 210, 170, a // 2))
+    save(img, "assets/ui/slash.png")
 
 
 def build_characters():
@@ -754,14 +828,16 @@ def build_characters():
         save(char_sheet(look), f"assets/characters/{key}.png")
     sc = draw_scarecrow()
     save(sc, "assets/characters/scarecrow.png")
-    # 전투용 (2배)
-    save(scale(sc, 2), "assets/enemies/scarecrow_battle.png")
-    save(scale(draw_char(LOOKS["bandit"], "down", 0), 2), "assets/enemies/bandit_battle.png")
-    save(scale(draw_char(LOOKS["doyun"], "left", 0).transpose(Image.FLIP_LEFT_RIGHT), 2),
+    # 전투용 (3배)
+    save(scale(sc, 3), "assets/enemies/scarecrow_battle.png")
+    save(scale(draw_char(LOOKS["bandit"], "down", 0), 3), "assets/enemies/bandit_battle.png")
+    save(scale(draw_char(LOOKS["doyun"], "left", 0).transpose(Image.FLIP_LEFT_RIGHT), 3),
          "assets/characters/doyun_battle.png")
-    icon = scale(draw_char(LOOKS["doyun"], "down", 0).crop((4, 0, 28, 24)), 5)
-    bg = new(128, 128, (250, 196, 120, 255))
-    bg.alpha_composite(icon.resize((120, 120), Image.NEAREST), (4, 6))
+    face = draw_char(LOOKS["doyun"], "down", 0).crop((6, 0, 26, 20))
+    bg = new(128, 128, PAPER)
+    circle(bg, 64, 64, 60, (178, 58, 42, 255))
+    icon = face.resize((120, 120), Image.NEAREST)
+    bg.alpha_composite(icon, (4, 10))
     save(bg, "icon.png")
 
 

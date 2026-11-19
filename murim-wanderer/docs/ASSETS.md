@@ -3,6 +3,7 @@
 | 에셋 | 경로 | 출처 | 라이선스 | 상업적 이용 |
 |---|---|---|---|---|
 | Galmuri11 픽셀 폰트 | `assets/fonts/Galmuri11.ttf` | Lee Minseo (quiple) — https://github.com/quiple/galmuri (npm `galmuri@2.40.3`) | SIL Open Font License 1.1 (`assets/fonts/Galmuri-LICENSE.txt`) | 가능 (폰트 단독 판매만 금지, 라이선스 파일 동봉) |
+| 나눔손글씨 붓 (제목·전투 이름 띠) | `assets/fonts/NanumBrushScript-Regular.ttf` | NHN Corporation — Google Fonts (`ofl/nanumbrushscript`) | SIL Open Font License 1.1 (`assets/fonts/NanumBrushScript-OFL.txt`) | 가능 (폰트 단독 판매만 금지, 라이선스 파일 동봉) |
 | 캐릭터 스프라이트 (도윤, 사범, 주민, 상인, 산적, 허수아비) | `assets/characters/`, `assets/enemies/` | 자체 제작 — `tools/gen_art.py` 로 생성 | 프로젝트 소유 | 가능 |
 | 청풍마을 타일셋 | `assets/tilesets/cheongpung_tiles.png` | 자체 제작 — `tools/gen_art.py` | 프로젝트 소유 | 가능 |
 | 타이틀/전투 배경 | `assets/backgrounds/` | 자체 제작 — `tools/gen_art.py` | 프로젝트 소유 | 가능 |

@@ -60,7 +60,7 @@ func _build() -> void:
 	var pv := VBoxContainer.new()
 	pv.add_theme_constant_override("separation", 2)
 	pp.add_child(pv)
-	_p_name = UiKit.label("", 12, Color(1, 0.93, 0.7))
+	_p_name = UiKit.label("", 12, UiKit.NAME)
 	pv.add_child(_p_name)
 	var hp_row := _stat_row("HP", UiKit.HP_COLOR)
 	_p_hp = hp_row[0]
@@ -70,7 +70,7 @@ func _build() -> void:
 	_p_mp = mp_row[0]
 	_p_mp_txt = mp_row[1]
 	pv.add_child(mp_row[2])
-	_charge_label = UiKit.label("기합 충전!", 12, Color(1, 0.8, 0.3))
+	_charge_label = UiKit.label("기합 충전!", 12, UiKit.EXP_COLOR)
 	_charge_label.visible = false
 	pv.add_child(_charge_label)
 
@@ -85,7 +85,7 @@ func _build() -> void:
 	var ev := VBoxContainer.new()
 	ev.add_theme_constant_override("separation", 3)
 	ep.add_child(ev)
-	_e_name = UiKit.label(str(enemy_def.get("name", "?")), 12, Color(1, 0.75, 0.7))
+	_e_name = UiKit.label(str(enemy_def.get("name", "?")), 12, UiKit.NAME)
 	ev.add_child(_e_name)
 	_e_hp = UiKit.bar(UiKit.HP_COLOR, 8)
 	ev.add_child(_e_hp)
@@ -131,9 +131,10 @@ func _fighter(tex: Texture2D, feet: Vector2) -> TextureRect:
 	r.texture = tex
 	r.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	r.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	r.size = Vector2(128, 128)
-	r.position = feet - Vector2(64, 128)
-	r.pivot_offset = Vector2(64, 128)
+	var sz := tex.get_size()
+	r.size = sz
+	r.position = feet - Vector2(sz.x / 2.0, sz.y)
+	r.pivot_offset = Vector2(sz.x / 2.0, sz.y)
 	add_child(r)
 	return r
 
@@ -172,7 +173,9 @@ func _refresh_bars() -> void:
 func _intro() -> void:
 	_enemy_sprite.modulate.a = 0.0
 	var t := create_tween()
-	t.tween_property(_enemy_sprite, "modulate:a", 1.0, 0.3)
+	t.tween_property(_enemy_sprite, "modulate:a", 1.0, 0.2)
+	_banner(str(enemy_def.get("name", "")))
+	await get_tree().create_timer(0.6).timeout
 	var fallback := "%s 나타났다!" % KText.josa(str(enemy_def.get("name", "적")), "이/가")
 	await _say(str(enemy_def.get("intro", fallback)))
 	_show_commands()
@@ -285,7 +288,7 @@ func _do_player_action(action: Callable) -> void:
 	await _play_events(events)
 	if await _check_end():
 		return
-	await get_tree().create_timer(0.25).timeout
+	await get_tree().create_timer(0.1).timeout
 	await _play_events(logic.enemy_turn())
 	if await _check_end():
 		return
@@ -389,6 +392,54 @@ func _on_message_input(event: InputEvent) -> void:
 		_skip_requested.emit()
 
 
+## 붓글씨 적 이름 띠 (등장 연출)
+func _banner(text: String) -> void:
+	var band := ColorRect.new()
+	band.color = Color8(20, 14, 14, 200)
+	band.anchor_right = 1.0
+	band.offset_top = 112
+	band.offset_bottom = 172
+	band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(band)
+	var l := UiKit.brush_label(text, 48, UiKit.TEXT)
+	l.set_anchors_preset(Control.PRESET_FULL_RECT)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	band.add_child(l)
+	band.modulate.a = 0.0
+	var t := create_tween()
+	t.tween_property(band, "modulate:a", 1.0, 0.12)
+	t.tween_interval(0.5)
+	t.tween_property(band, "modulate:a", 0.0, 0.2)
+	t.tween_callback(band.queue_free)
+
+
+func _slash(sprite: TextureRect, crit: bool) -> void:
+	var s := TextureRect.new()
+	s.texture = load("res://assets/ui/slash.png")
+	s.size = Vector2(128, 128)
+	s.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	s.position = sprite.position + sprite.size / 2.0 - s.size / 2.0
+	s.pivot_offset = s.size / 2.0
+	s.rotation = randf_range(-0.4, 0.4)
+	s.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if crit:
+		s.modulate = Color8(255, 200, 150)
+	add_child(s)
+	var t := create_tween()
+	t.tween_property(s, "modulate:a", 0.0, 0.18).set_delay(0.06)
+	t.tween_callback(s.queue_free)
+	if crit:
+		_shake(6.0)
+
+
+func _shake(power: float) -> void:
+	var t := create_tween()
+	for i in 5:
+		t.tween_property(self, "position", Vector2(randf_range(-power, power), randf_range(-power, power)), 0.03)
+	t.tween_property(self, "position", Vector2.ZERO, 0.03)
+
+
 func _lunge(sprite: TextureRect, dir: int) -> void:
 	var x := sprite.position.x
 	var t := create_tween()
@@ -403,6 +454,7 @@ func _hit_fx(sprite: TextureRect, dmg: int, crit: bool) -> void:
 		t.tween_property(sprite, "position:x", x + (5 if i % 2 == 0 else -5), 0.04)
 	t.tween_property(sprite, "position:x", x, 0.04)
 	_flash(sprite, Color(2.5, 2.5, 2.5))
+	_slash(sprite, crit)
 	_float_text(sprite, str(dmg) + ("!" if crit else ""), Color(1, 0.85, 0.3) if crit else Color(1, 1, 1))
 
 
