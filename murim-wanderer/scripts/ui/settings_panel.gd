@@ -10,6 +10,7 @@ var _volume_label: Label
 var _speed_btn: Button
 var _touch_btn: Button
 var _full_btn: Button
+var _timing_btn: Button
 
 
 func _ready() -> void:
@@ -41,6 +42,9 @@ func _ready() -> void:
 	_touch_btn = UiKit.button("", Vector2(220, 26))
 	_touch_btn.pressed.connect(_cycle_touch)
 	v.add_child(_touch_btn)
+	_timing_btn = UiKit.button("", Vector2(220, 26))
+	_timing_btn.pressed.connect(func(): Settings.set_value("battle_timing", not Settings.battle_timing); _refresh())
+	v.add_child(_timing_btn)
 	_full_btn = UiKit.button("", Vector2(220, 26))
 	_full_btn.pressed.connect(func(): Settings.set_value("fullscreen", not Settings.fullscreen); _refresh())
 	_full_btn.visible = OS.has_feature("pc")
@@ -75,6 +79,7 @@ func _refresh() -> void:
 	_speed_btn.text = "대사 속도: %s" % Settings.TEXT_SPEED_NAMES[Settings.text_speed]
 	_touch_btn.text = "터치 버튼: %s" % Settings.TOUCH_MODES[Settings.touch_controls]
 	_full_btn.text = "전체 화면: %s" % ("켜기" if Settings.fullscreen else "끄기")
+	_timing_btn.text = "전투 타이밍 입력: %s" % ("켜기" if Settings.battle_timing else "끄기")
 
 
 func _unhandled_input(event: InputEvent) -> void:

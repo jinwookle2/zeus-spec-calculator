@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://5234aqjv56ww"
-path="res://.godot/imported/doyun_battle.png-ee33d1e6ce283e8f0a854df4d25af320.ctex"
+uid="uid://dhowgp0ce6oaw"
+path="res://.godot/imported/bandit_angry.png-12ccf9852544bc2a69f5208fc04acd11.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/characters/doyun_battle.png"
-dest_files=["res://.godot/imported/doyun_battle.png-ee33d1e6ce283e8f0a854df4d25af320.ctex"]
+source_file="res://assets/portraits/bandit_angry.png"
+dest_files=["res://.godot/imported/bandit_angry.png-12ccf9852544bc2a69f5208fc04acd11.ctex"]
 
 [params]
 

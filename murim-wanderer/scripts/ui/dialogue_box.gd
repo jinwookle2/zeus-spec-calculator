@@ -8,6 +8,8 @@ var _panel: Panel
 var _name_panel: PanelContainer
 var _name_label: Label
 var _text: Label
+var _portrait: TextureRect
+var _portrait_frame: Panel
 var _arrow: Label
 var _lines: Array = []
 var _index := 0
@@ -41,11 +43,24 @@ func _build() -> void:
 	_panel.anchor_bottom = 1.0
 	_panel.offset_left = 24
 	_panel.offset_right = -24
-	_panel.offset_top = -92
+	_panel.offset_top = -96
 	_panel.offset_bottom = -10
 	_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	_panel.gui_input.connect(_on_panel_input)
 	root.add_child(_panel)
+
+	_portrait_frame = Panel.new()
+	_portrait_frame.add_theme_stylebox_override("panel", UiKit.box(Color8(60, 46, 40), UiKit.GOLD, 1, 0))
+	_portrait_frame.position = Vector2(10, 10)
+	_portrait_frame.size = Vector2(66, 66)
+	_portrait_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_panel.add_child(_portrait_frame)
+	_portrait = TextureRect.new()
+	_portrait.position = Vector2(1, 1)
+	_portrait.size = Vector2(64, 64)
+	_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_portrait.stretch_mode = TextureRect.STRETCH_SCALE
+	_portrait_frame.add_child(_portrait)
 
 	_text = UiKit.label("", 12)
 	_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -122,6 +137,15 @@ func _show_current() -> void:
 	var speaker := str(line.get("speaker", ""))
 	_name_panel.visible = speaker != ""
 	_name_label.text = speaker
+	var tex := DataDB.portrait(speaker, str(line.get("face", "normal")))
+	_portrait_frame.visible = tex != null
+	_portrait.texture = tex
+	_text.offset_left = 88 if tex else 14
+	_name_panel.position.x = 84 if tex else 10
+	if tex and str(line.get("face", "normal")) != "normal":
+		# 표정이 바뀌면 살짝 튀어오르기
+		_portrait.position.y = -3
+		create_tween().tween_property(_portrait, "position:y", 1.0, 0.12)
 	_text.text = str(line.get("text", ""))
 	var cps := Settings.chars_per_second()
 	if cps <= 0.0:

@@ -15,7 +15,7 @@ static func resolve(entry_id: String) -> Dictionary:
 			var lines: Array = []
 			for line in v.get("lines", []):
 				if typeof(line) == TYPE_DICTIONARY:
-					lines.append({"speaker": str(line.get("speaker", default_name)), "text": str(line.get("text", ""))})
+					lines.append({"speaker": str(line.get("speaker", default_name)), "text": str(line.get("text", "")), "face": str(line.get("face", "normal"))})
 				else:
 					lines.append({"speaker": default_name, "text": str(line)})
 			return {"name": default_name, "lines": lines, "actions": v.get("actions", {})}

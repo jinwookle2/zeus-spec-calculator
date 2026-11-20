@@ -58,8 +58,26 @@ func face_toward(pos: Vector2) -> void:
 	face(SpriteFramesBuilder.dir_name(pos - global_position))
 
 
+func emote(text: String = "!") -> void:
+	var l := UiKit.label(text, 12, Color8(30, 22, 22))
+	var bubble := PanelContainer.new()
+	bubble.add_theme_stylebox_override("panel", UiKit.box(Color8(244, 236, 216), Color8(30, 22, 22), 1, 2))
+	bubble.add_child(l)
+	bubble.position = Vector2(-7, -50)
+	bubble.z_index = 20
+	add_child(bubble)
+	bubble.scale = Vector2(0.2, 0.2)
+	var t := create_tween()
+	t.tween_property(bubble, "scale", Vector2.ONE, 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t.tween_interval(0.6)
+	t.tween_property(bubble, "modulate:a", 0.0, 0.2)
+	t.tween_callback(bubble.queue_free)
+
+
 func interact(player: Node2D) -> void:
 	face_toward(player.global_position)
+	emote("!" if not def.has("battle") else "!!")
+	hop()
 	var box := get_tree().get_first_node_in_group("dialogue_box")
 	if box:
 		var acts: Dictionary = await box.run(str(def.get("dialogue", "")))

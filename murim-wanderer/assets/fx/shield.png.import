@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://doue8mfg7if4n"
-path="res://.godot/imported/scarecrow_battle.png-9cec4271597f2407a3a35f5bac0da9b4.ctex"
+uid="uid://c4ba1t4rmbyuu"
+path="res://.godot/imported/shield.png-a2fdb9deb6c6727732541dd61c4422b6.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/enemies/scarecrow_battle.png"
-dest_files=["res://.godot/imported/scarecrow_battle.png-9cec4271597f2407a3a35f5bac0da9b4.ctex"]
+source_file="res://assets/fx/shield.png"
+dest_files=["res://.godot/imported/shield.png-a2fdb9deb6c6727732541dd61c4422b6.ctex"]
 
 [params]
 

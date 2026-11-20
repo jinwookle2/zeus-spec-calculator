@@ -181,6 +181,17 @@ func test_data_integrity() -> void:
 			var dest := DataDB.get_map(x["to"])
 			var sp := Vector2i(int(x["spawn"][0]), int(x["spawn"][1]))
 			check(not MapBuilder.is_solid(dest, sp), "%s: 출구 도착 지점 통행 가능" % map_id)
+	for speaker in DataDB.portraits:
+		if str(speaker).begins_with("_"):
+			continue
+		check(DataDB.portrait(speaker, "normal") != null, "초상화 존재: %s" % speaker)
+	for e in ["happy", "angry", "surprised", "sweat"]:
+		check(ResourceLoader.exists("res://assets/portraits/doyun_%s.png" % e), "도윤 표정: %s" % e)
+	for pose in ["ready", "punch", "kick", "hurt", "guard", "win", "shout", "ko"]:
+		check(ResourceLoader.exists("res://assets/battle/doyun_%s.png" % pose), "도윤 전투 자세: %s" % pose)
+	for en in DataDB.enemies:
+		for pose in ["idle", "windup", "attack", "hurt", "ko"]:
+			check(ResourceLoader.exists(DataDB.enemies[en]["battle"] + pose + ".png"), "%s 전투 자세: %s" % [en, pose])
 	var village := DataDB.get_map("cheongpung")
 	check(village["size"] == [30, 20] or village["size"] == [30.0, 20.0], "청풍마을 30x20 타일")
 	check(village["npcs"].size() == 3, "청풍마을 NPC 3명")
@@ -392,6 +403,21 @@ func test_growth() -> void:
 	GameState.set_flag("bandit_defeated")
 	check("소식" in GameState.guide()["text"], "3: 사범에게 보고")
 
+	section("타이밍 배율")
+	var la := _new_logic("bandit", 4)
+	var lb := _new_logic("bandit", 4)
+	la.e["hp"] = 999
+	lb.e["hp"] = 999
+	la.player_skill("basic_fist", 1.0)
+	lb.player_skill("basic_fist", 1.3)
+	check(999 - int(lb.e["hp"]) >= 999 - int(la.e["hp"]), "완벽 타이밍 피해 ≥ 보통 (%d vs %d)" % [999 - int(lb.e["hp"]), 999 - int(la.e["hp"])])
+	la = _new_logic("bandit", 6)
+	lb = _new_logic("bandit", 6)
+	var atk := {"type": "attack", "power": 1.0, "text": "공격"}
+	la.enemy_turn(atk, false)
+	lb.enemy_turn(atk, true)
+	check(60 - int(lb.p["hp"]) < 60 - int(la.p["hp"]), "받아치기 피해 감소 (%d → %d)" % [60 - int(la.p["hp"]), 60 - int(lb.p["hp"])])
+
 	section("새 무공 / 자동 전투 판단")
 	l = _new_logic()
 	l.skill_levels = {}
@@ -599,6 +625,8 @@ func test_playthrough() -> void:
 	await frames(3)
 	check(box.is_open(), "상호작용 → 대화창 열림")
 	check(box._name_label.text == "도장 사범 백운", "NPC 이름 표시")
+	check(box._portrait_frame.visible and box._portrait.texture != null, "대화창 초상화 표시")
+	check(box._portrait.texture.resource_path.ends_with("master_happy.png"), "대사별 표정 (사범 첫 대사: 기쁨)")
 	await seconds(0.4)
 	await shot("04_dialogue")
 	check("천하제일 고수" in box._text.text, "한국어 대사 출력")
@@ -612,6 +640,7 @@ func test_playthrough() -> void:
 	await frames(2)
 	check(box._text.text != first_text, "대사 넘기기 → 다음 줄")
 	check(box._name_label.text == "도윤", "화자 전환 (도윤)")
+	check(box._portrait.texture.resource_path.find("doyun_") >= 0, "화자에 맞춰 초상화 전환")
 	await finish_dialogue(box)
 	check(not box.is_busy(), "대화 종료 (획득 안내 포함)")
 	check(not GameState.is_input_locked(), "대화 종료 후 잠금 해제")
@@ -764,6 +793,48 @@ func test_playthrough() -> void:
 	var exp_before := int(GameState.player["exp"]) + 0
 	var lvl_before := int(GameState.player["level"])
 	battle.logic.rng.seed = 12345
+	section("역동적 전투: 타이밍 · 받아치기 · 자세")
+	check(battle._player_sprite.texture.resource_path.ends_with("doyun_ready.png"), "대기 자세 (ready)")
+	battle._use_skill("basic_fist")
+	var tt := Time.get_ticks_msec()
+	while not battle.is_timing_active() and Time.get_ticks_msec() - tt < 2000:
+		await frames(1)
+	check(battle.is_timing_active(), "공격 시 타이밍 원 표시")
+	await seconds(battle._cfg_t("ring_time", 0.55) - 0.02)
+	battle.timing_press()
+	await frames(2)
+	check(battle.last_timing == "perfect", "원이 겹칠 때 누르면 「완벽!」")
+	var saw_punch := false
+	tt = Time.get_ticks_msec()
+	while Time.get_ticks_msec() - tt < 1500 and not saw_punch:
+		saw_punch = battle._player_sprite.texture.resource_path.ends_with("doyun_punch.png")
+		await frames(1)
+	check(saw_punch, "돌진 후 주먹 자세로 타격")
+	var parried := false
+	tt = Time.get_ticks_msec()
+	while battle.busy and Time.get_ticks_msec() - tt < 6000:
+		if battle.is_timing_active() and battle.last_timing != "parry":
+			battle.timing_press()
+			await frames(2)
+			parried = battle.last_timing == "parry"
+		await frames(1)
+	await _wait_commands(battle)
+	if not parried:
+		# 적이 이번 턴 공격하지 않았으면 다음 턴에 다시 시도
+		for k in 3:
+			if parried or battle.logic.state != BattleLogic.State.ONGOING:
+				break
+			battle._cmd_guard()
+			tt = Time.get_ticks_msec()
+			while battle.busy and Time.get_ticks_msec() - tt < 6000:
+				if battle.is_timing_active():
+					battle.timing_press()
+					await frames(2)
+					parried = parried or battle.last_timing == "parry"
+				await frames(1)
+			await _wait_commands(battle)
+	check(parried, "적의 「!」에 맞춰 누르면 받아치기")
+	await shot("10b_battle_dynamic")
 	var mp0 := int(battle.logic.p["mp"])
 	var ehp0 := int(battle.logic.e["hp"])
 	battle._use_skill("kihap")

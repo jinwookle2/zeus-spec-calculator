@@ -23,5 +23,14 @@
       6
     ]
   },
-  "message_delay": 0.5
+  "message_delay": 0.4,
+  "timing": {
+    "_comment": "타이밍 입력: 원이 겹칠 때 누르면 완벽(피해 배율), 적의 '!'에 맞춰 누르면 받아치기(받는 피해 배율)",
+    "ring_time": 0.55,
+    "perfect_window": 0.16,
+    "perfect_mult": 1.3,
+    "parry_window": 0.28,
+    "parry_mult": 0.4,
+    "windup_time": 0.45
+  }
 }

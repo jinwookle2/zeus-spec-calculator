@@ -12,6 +12,7 @@ var battle_config: Dictionary = {}
 var tiles: Dictionary = {}
 var growth: Dictionary = {}
 var economy: Dictionary = {}
+var portraits: Dictionary = {}
 var maps_index: Dictionary = {}
 var _map_cache: Dictionary = {}
 
@@ -31,6 +32,7 @@ func reload() -> void:
 	tiles = load_json("res://data/maps/tiles.json")
 	growth = load_json("res://data/characters/growth.json")
 	economy = load_json("res://data/items/economy.json")
+	portraits = load_json("res://data/characters/portraits.json")
 	maps_index = load_json("res://data/maps/maps.json")
 	_map_cache.clear()
 
@@ -69,3 +71,14 @@ static func load_json(path: String) -> Dictionary:
 		push_error("JSON 최상위가 객체가 아님: %s" % path)
 		return {}
 	return json.data
+
+
+## 화자 이름 + 표정 → 초상화 텍스처 (없으면 null)
+func portrait(speaker: String, face: String = "normal") -> Texture2D:
+	var pid: String = str(portraits.get(speaker, ""))
+	if pid == "":
+		return null
+	var path := "res://assets/portraits/%s_%s.png" % [pid, face]
+	if not ResourceLoader.exists(path):
+		path = "res://assets/portraits/%s_normal.png" % pid
+	return load(path) if ResourceLoader.exists(path) else null

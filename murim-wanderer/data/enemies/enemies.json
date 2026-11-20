@@ -1,7 +1,6 @@
 {
   "scarecrow": {
     "name": "수련용 허수아비",
-    "sprite": "res://assets/enemies/scarecrow_battle.png",
     "max_hp": 30,
     "max_mp": 0,
     "attack": 7,
@@ -30,11 +29,11 @@
       }
     ],
     "auto_ok": true,
-    "qi": 4
+    "qi": 4,
+    "battle": "res://assets/battle/scarecrow_"
   },
   "bandit": {
     "name": "초급 산적 덕팔",
-    "sprite": "res://assets/enemies/bandit_battle.png",
     "max_hp": 55,
     "max_mp": 10,
     "attack": 11,
@@ -68,6 +67,7 @@
         "text": "덕팔: \"잠깐, 내가 오늘 가스레인지 껐던가...?\""
       }
     ],
-    "qi": 12
+    "qi": 12,
+    "battle": "res://assets/battle/bandit_"
   }
 }

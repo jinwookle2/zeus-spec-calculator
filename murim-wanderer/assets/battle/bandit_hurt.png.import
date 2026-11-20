@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dmbsj38yhgwrg"
-path="res://.godot/imported/bandit_battle.png-e157dab969d57464eb8f240540dbdd0a.ctex"
+uid="uid://bga3gr5ft3cvw"
+path="res://.godot/imported/bandit_hurt.png-4433dd3becca5ddbb11d97bf3c9b0e42.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/enemies/bandit_battle.png"
-dest_files=["res://.godot/imported/bandit_battle.png-e157dab969d57464eb8f240540dbdd0a.ctex"]
+source_file="res://assets/battle/bandit_hurt.png"
+dest_files=["res://.godot/imported/bandit_hurt.png-4433dd3becca5ddbb11d97bf3c9b0e42.ctex"]
 
 [params]
 

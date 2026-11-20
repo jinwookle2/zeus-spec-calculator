@@ -948,8 +948,12 @@ def build_effects():
 
 
 if __name__ == "__main__":
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import art_chars  # v4 캐릭터 (개성 있는 SD + 표정 + 전투 자세)
     build_tileset()
-    build_characters()
+    art_chars.build_all()
+    art_chars.build_fx()
     build_title_bg()
     build_battle_bg()
     build_ui()

@@ -14,6 +14,7 @@ var touch_controls: String = "auto"
 var fullscreen: bool = false
 var battle_speed: int = 1   # 1 또는 2 (전투 배속)
 var battle_auto: bool = false
+var battle_timing: bool = true  # 전투 타이밍 입력 (완벽 공격 / 받아치기)
 
 
 func _ready() -> void:
@@ -52,6 +53,8 @@ func set_value(key: String, value: Variant) -> void:
 			battle_speed = 2 if int(value) >= 2 else 1
 		"battle_auto":
 			battle_auto = bool(value)
+		"battle_timing":
+			battle_timing = bool(value)
 	_apply()
 	save()
 	changed.emit()
@@ -65,6 +68,7 @@ func save() -> void:
 	cfg.set_value("video", "fullscreen", fullscreen)
 	cfg.set_value("battle", "speed", battle_speed)
 	cfg.set_value("battle", "auto", battle_auto)
+	cfg.set_value("battle", "timing", battle_timing)
 	cfg.save(PATH)
 
 
@@ -80,6 +84,7 @@ func _load() -> void:
 	fullscreen = bool(cfg.get_value("video", "fullscreen", false))
 	battle_speed = 2 if int(cfg.get_value("battle", "speed", 1)) >= 2 else 1
 	battle_auto = bool(cfg.get_value("battle", "auto", false))
+	battle_timing = bool(cfg.get_value("battle", "timing", true))
 
 
 func _apply() -> void:

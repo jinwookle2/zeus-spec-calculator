@@ -103,7 +103,8 @@ func can_use_skill(skill_id: String) -> bool:
 	return not s.is_empty() and int(p["mp"]) >= int(s.get("mp_cost", 0))
 
 
-func player_skill(skill_id: String) -> Array:
+## timing: 타이밍 입력 배율 (완벽 = timing.perfect_mult, 보통 1.0)
+func player_skill(skill_id: String, timing: float = 1.0) -> Array:
 	var s: Dictionary = skills_db.get(skill_id, {})
 	if s.is_empty():
 		return [_ev("알 수 없는 무술이다.", "", 0, 0, "invalid")]
@@ -116,7 +117,7 @@ func player_skill(skill_id: String) -> Array:
 	match s.get("type", "attack"):
 		"attack":
 			var hits := int(s.get("hits", 1))
-			var mult := charge_mult
+			var mult := charge_mult * timing
 			charge_mult = 1.0
 			for i in hits:
 				if int(e["hp"]) <= 0:
@@ -194,7 +195,8 @@ func choose_enemy_action() -> Dictionary:
 	return actions[-1]
 
 
-func enemy_turn(forced_action: Dictionary = {}) -> Array:
+## parried: 플레이어가 적의 공격 타이밍에 맞춰 받아쳤는지 (받는 피해 감소)
+func enemy_turn(forced_action: Dictionary = {}, parried: bool = false) -> Array:
 	if state != State.ONGOING:
 		return []
 	enemy_guarding = false
@@ -203,11 +205,12 @@ func enemy_turn(forced_action: Dictionary = {}) -> Array:
 	events.append(_ev(str(a.get("text", "%s의 공격!" % e["name"])), "", 0, 0, "enemy_cast"))
 	match a.get("type", "attack"):
 		"attack":
-			var r := calc_damage(int(e["attack"]), int(p["defense"]), float(a.get("power", 1.0)), player_guarding, 1.0, guard_override if player_guarding else -1.0)
+			var pm := float(cfg.get("timing", {}).get("parry_mult", 0.4)) if parried else 1.0
+			var r := calc_damage(int(e["attack"]), int(p["defense"]), float(a.get("power", 1.0)), player_guarding, pm, guard_override if player_guarding else -1.0)
 			p["hp"] = maxi(0, int(p["hp"]) - int(r["amount"]))
 			var prefix := "아픈 곳을 맞았다! " if r["crit"] else ""
-			var guard_txt := " (방어!)" if player_guarding else ""
-			events.append(_ev("%s%s %d의 피해를 입었다!%s" % [prefix, KText.josa(p["name"], "은/는"), r["amount"], guard_txt], "player", int(r["amount"]), 0, "crit" if r["crit"] else "hit"))
+			var guard_txt := " (받아쳤다!)" if parried else (" (방어!)" if player_guarding else "")
+			events.append(_ev("%s%s %d의 피해를 입었다!%s" % [prefix, KText.josa(p["name"], "은/는"), r["amount"], guard_txt], "player", int(r["amount"]), 0, "parry" if parried else ("crit" if r["crit"] else "hit")))
 			if int(p["hp"]) <= 0:
 				state = State.LOST
 				events.append(_ev("%s 쓰러졌다..." % KText.josa(p["name"], "은/는"), "player", 0, 0, "down"))
