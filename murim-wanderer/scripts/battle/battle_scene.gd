@@ -1,6 +1,6 @@
 extends Control
 ## 턴제 전투 화면. 규칙은 BattleLogic, 이 스크립트는 화면 연출과 입력만 담당한다.
-## 명령: 공격 / 무술 / 방어 / 아이템 / 도주
+## 명령: 장착 무공 아이콘(최대 4) + 공격 / 방어 / 아이템 / 도주, 자동 전투·2배속 토글
 
 signal _skip_requested
 
@@ -26,6 +26,11 @@ var _e_name: Label
 var _e_hp: ProgressBar
 var _charge_label: Label
 var _waiting_confirm := false
+var auto_on := false
+var auto_allowed := false
+var _auto_btn: Button
+var _speed_btn: Button
+var _skill_buttons: Dictionary = {}
 
 
 func _ready() -> void:
@@ -35,7 +40,11 @@ func _ready() -> void:
 	if GameState.player.is_empty():
 		GameState.new_game()  # 에디터에서 장면만 단독 실행한 경우
 	enemy_def = DataDB.enemies.get(enemy_id, {})
-	logic.setup(GameState.player, enemy_id, enemy_def, DataDB.battle_config, DataDB.skills)
+	logic.setup(GameState.effective_stats(), enemy_id, enemy_def, DataDB.battle_config, DataDB.skills, -1, GameState.skill_levels, DataDB.growth)
+	# 자동 전투: 반복 수련 상대이거나 이미 한 번 이긴 상대만 (A안: 스토리 첫 전투는 직접)
+	auto_allowed = bool(enemy_def.get("auto_ok", false)) or GameState.has_flag("beaten_" + enemy_id)
+	auto_on = auto_allowed and Settings.battle_auto
+	Engine.time_scale = 2.0 if Settings.battle_speed >= 2 else 1.0
 	_build()
 	_refresh_bars()
 	_intro.call_deferred()
@@ -96,7 +105,7 @@ func _build() -> void:
 	mp.anchor_bottom = 1.0
 	mp.anchor_right = 1.0
 	mp.offset_left = 8
-	mp.offset_right = -190
+	mp.offset_right = -222
 	mp.offset_top = -124
 	mp.offset_bottom = -8
 	mp.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -114,16 +123,34 @@ func _build() -> void:
 	_cmd_panel.anchor_right = 1.0
 	_cmd_panel.anchor_top = 1.0
 	_cmd_panel.anchor_bottom = 1.0
-	_cmd_panel.offset_left = -182
+	_cmd_panel.offset_left = -214
 	_cmd_panel.offset_right = -8
 	_cmd_panel.offset_top = -124
 	_cmd_panel.offset_bottom = -8
 	add_child(_cmd_panel)
 	_cmd_box = GridContainer.new()
-	_cmd_box.add_theme_constant_override("h_separation", 6)
-	_cmd_box.add_theme_constant_override("v_separation", 6)
+	_cmd_box.add_theme_constant_override("h_separation", 4)
+	_cmd_box.add_theme_constant_override("v_separation", 4)
 	_cmd_panel.add_child(_cmd_box)
 	_cmd_panel.visible = false
+
+	# 자동 / 배속 토글 (상단 중앙)
+	var toggles := HBoxContainer.new()
+	toggles.anchor_left = 0.5
+	toggles.anchor_right = 0.5
+	toggles.offset_top = 8
+	toggles.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	toggles.add_theme_constant_override("separation", 4)
+	add_child(toggles)
+	_auto_btn = UiKit.button("", Vector2(64, 24))
+	_auto_btn.focus_mode = Control.FOCUS_NONE
+	_auto_btn.pressed.connect(toggle_auto)
+	toggles.add_child(_auto_btn)
+	_speed_btn = UiKit.button("", Vector2(56, 24))
+	_speed_btn.focus_mode = Control.FOCUS_NONE
+	_speed_btn.pressed.connect(toggle_speed)
+	toggles.add_child(_speed_btn)
+	_refresh_toggles()
 
 
 func _fighter(tex: Texture2D, feet: Vector2) -> TextureRect:
@@ -184,35 +211,86 @@ func _intro() -> void:
 func _show_commands() -> void:
 	busy = false
 	_msg.text = "%s 무엇을 할까?" % KText.josa(logic.p["name"], "은/는")
-	_fill_commands([
-		["공격", _cmd_attack, true],
-		["무술", _cmd_skills, true],
-		["방어", _cmd_guard, true],
-		["아이템", _cmd_items, _has_battle_items()],
-		["도주", _cmd_flee, true],
-	], 2)
+	for c in _cmd_box.get_children():
+		c.queue_free()
+	_skill_buttons.clear()
+	_cmd_box.columns = 4
+	var buttons: Array = []
+	for i in GameState.slot_count():
+		if i < GameState.equipped.size():
+			var sid: String = GameState.equipped[i]
+			var b := _skill_button(sid)
+			_cmd_box.add_child(b)
+			buttons.append(b)
+			_skill_buttons[sid] = b
+		else:
+			var empty := UiKit.button("", Vector2(45, 44))
+			empty.disabled = true
+			_cmd_box.add_child(empty)
+	for e in [["공격", _cmd_attack, true], ["방어", _cmd_guard, true],
+			["아이템", _cmd_items, _has_battle_items()], ["도주", _cmd_flee, true]]:
+		var b := UiKit.button(e[0], Vector2(45, 24))
+		b.add_theme_constant_override("h_separation", 0)
+		b.add_theme_stylebox_override("normal", UiKit.box(Color8(54, 40, 34), Color8(112, 88, 62), 1, 2))
+		b.disabled = not e[2]
+		b.pressed.connect(e[1])
+		_cmd_box.add_child(b)
+		buttons.append(b)
+	_cmd_panel.visible = true
+	UiKit.chain_focus(buttons)
+	var first := UiKit.first_enabled(buttons)
+	if first and not auto_on:
+		first.grab_focus.call_deferred()
+	if auto_on:
+		_auto_step.call_deferred()
 
 
+func _skill_button(sid: String) -> Button:
+	var s: Dictionary = DataDB.skills.get(sid, {})
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(45, 44)
+	b.icon = load("res://assets/ui/icons/%s.png" % s.get("icon", "skill_fist"))
+	b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	b.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
+	var cost := int(s.get("mp_cost", 0))
+	b.text = ("MP%d" % cost) if cost > 0 else "—"
+	b.add_theme_font_size_override("font_size", 12)
+	b.add_theme_stylebox_override("normal", UiKit.box(Color8(54, 40, 34), Color8(112, 88, 62), 1, 2))
+	b.add_theme_stylebox_override("hover", UiKit.box(Color8(80, 58, 46), UiKit.GOLD, 1, 2))
+	b.add_theme_stylebox_override("pressed", UiKit.box(UiKit.VERMILION, UiKit.GOLD, 1, 2))
+	b.add_theme_stylebox_override("disabled", UiKit.box(Color8(36, 28, 26), Color8(70, 60, 54), 1, 2))
+	b.disabled = not logic.can_use_skill(sid)
+	if b.disabled:
+		b.modulate = Color(0.6, 0.6, 0.6)
+	b.tooltip_text = str(s.get("name", sid))
+	var lv := GameState.skill_level(sid)
+	var desc := "%s%s — %s" % [s.get("name", sid), (" +%d" % lv) if lv > 0 else "", s.get("desc", "")]
+	b.focus_entered.connect(func(): if not busy: _msg.text = desc)
+	b.mouse_entered.connect(func(): if not busy: _msg.text = desc)
+	b.pressed.connect(_use_skill.bind(sid))
+	return b
+
+
+## 아이템 등 목록형 하위 메뉴
 func _fill_commands(entries: Array, columns: int, back: bool = false) -> void:
 	for c in _cmd_box.get_children():
 		c.queue_free()
 	_cmd_box.columns = columns
-	_cmd_box.add_theme_constant_override("v_separation", 6 if columns == 2 else 4)
 	var buttons: Array = []
-	var w := 76 if columns == 2 else 158
-	var h := 24 if columns == 2 else 22
+	var w := 190
 	for e in entries:
-		var b := UiKit.button(e[0], Vector2(w, h))
+		var b := UiKit.button(e[0], Vector2(w, 22))
 		b.disabled = not e[2]
 		b.pressed.connect(e[1])
 		_cmd_box.add_child(b)
 		buttons.append(b)
 	if back:
-		var bb := UiKit.button("뒤로", Vector2(w, h))
+		var bb := UiKit.button("뒤로", Vector2(w, 22))
 		bb.pressed.connect(_show_commands)
 		_cmd_box.add_child(bb)
 		buttons.append(bb)
 	_cmd_panel.visible = true
+	UiKit.chain_focus(buttons)
 	var first := UiKit.first_enabled(buttons)
 	if first:
 		first.grab_focus.call_deferred()
@@ -230,23 +308,85 @@ func _has_battle_items() -> bool:
 	return false
 
 
+# ------------------------------------------------------------------ 자동 전투 / 배속
+func toggle_auto() -> void:
+	if not auto_allowed:
+		_msg.text = "첫 대결은 직접 싸워야 한다. (한 번 이긴 상대·수련 상대만 자동 전투)"
+		return
+	auto_on = not auto_on
+	Settings.set_value("battle_auto", auto_on)
+	_refresh_toggles()
+	if auto_on and not busy:
+		_auto_step()
+
+
+func toggle_speed() -> void:
+	Settings.set_value("battle_speed", 1 if Settings.battle_speed >= 2 else 2)
+	Engine.time_scale = 2.0 if Settings.battle_speed >= 2 else 1.0
+	_refresh_toggles()
+
+
+func _refresh_toggles() -> void:
+	if not _auto_btn:
+		return
+	_auto_btn.text = ("자동 ON" if auto_on else "자동") if auto_allowed else "자동 잠김"
+	_auto_btn.modulate = Color(1.25, 1.1, 0.8) if auto_on else (Color(1, 1, 1) if auto_allowed else Color(0.6, 0.6, 0.6))
+	_speed_btn.text = "2배속" if Settings.battle_speed >= 2 else "1배속"
+	_speed_btn.modulate = Color(1.25, 1.1, 0.8) if Settings.battle_speed >= 2 else Color(1, 1, 1)
+
+
+func _auto_step() -> void:
+	await get_tree().create_timer(0.25).timeout
+	if not is_inside_tree() or not auto_on or busy or logic.state != BattleLogic.State.ONGOING:
+		return
+	var choice := logic.auto_choose(GameState.equipped, GameState.item_count("herb"))
+	match choice["kind"]:
+		"item":
+			_use_item(choice["id"])
+		_:
+			_use_skill(choice["id"])
+
+
+func _exit_tree() -> void:
+	Engine.time_scale = 1.0
+
+
+## 무공 이름 붓글씨 컷인
+func _cutin(text: String) -> void:
+	var band := ColorRect.new()
+	band.color = Color8(20, 14, 14, 215)
+	band.anchor_right = 1.0
+	band.offset_top = 128
+	band.offset_bottom = 176
+	band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(band)
+	var red := ColorRect.new()
+	red.color = UiKit.VERMILION
+	red.anchor_right = 1.0
+	red.offset_bottom = 3
+	band.add_child(red)
+	var l := UiKit.brush_label(text, 44, UiKit.TEXT)
+	l.set_anchors_preset(Control.PRESET_FULL_RECT)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	band.add_child(l)
+	l.position.x = 120
+	var t := create_tween().set_parallel(true)
+	t.tween_property(l, "position:x", 0.0, 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	t.tween_property(band, "modulate:a", 0.0, 0.15).set_delay(0.38)
+	t.chain().tween_callback(band.queue_free)
+
+
 # ------------------------------------------------------------------ 명령
 func _cmd_attack() -> void:
 	await _do_player_action(func(): return logic.player_attack())
 
 
-func _cmd_skills() -> void:
-	var entries: Array = []
-	for sid in GameState.skills:
-		var s: Dictionary = DataDB.skills.get(sid, {})
-		var cost := int(s.get("mp_cost", 0))
-		var label := "%s (MP %d)" % [s.get("name", sid), cost] if cost > 0 else str(s.get("name", sid))
-		entries.append([label, _use_skill.bind(sid), logic.can_use_skill(sid)])
-	_fill_commands(entries, 1, true)
-	_msg.text = "어떤 무술을 쓸까?"
-
-
 func _use_skill(sid: String) -> void:
+	if busy:
+		return
+	if sid != "basic_fist" and logic.can_use_skill(sid):
+		_cutin(str(DataDB.skills.get(sid, {}).get("name", "")))
 	await _do_player_action(func(): return logic.player_skill(sid))
 
 
@@ -324,16 +464,21 @@ func _check_end() -> bool:
 	match logic.state:
 		BattleLogic.State.WON:
 			GameState.set_hp_mp(int(logic.p["hp"]), int(logic.p["mp"]))
+			GameState.set_flag("beaten_" + enemy_id)
+			var qi_gain := int(logic.e["qi"])
+			if qi_gain > 0:
+				GameState.add_qi(qi_gain)
 			var exp_gain := int(logic.e["exp"])
 			var gold := int(logic.e["gold"])
-			await _say("경험치 %d을(를) 얻었다!" % exp_gain)
+			await _say("경험치 %d, 내공 %d을(를) 얻었다!" % [exp_gain, qi_gain])
 			if gold > 0:
 				GameState.player["gold"] = int(GameState.player["gold"]) + gold
 				await _say("%d냥을 주웠다! (덕팔의 비상금인 것 같다)" % gold if enemy_id == "bandit" else "%d냥을 얻었다!" % gold)
 			for line in GameState.add_exp(exp_gain):
 				# 레벨업 시 회복/성장한 능력치를 전투 화면에도 반영
+				var eff := GameState.effective_stats()
 				for key in ["hp", "max_hp", "mp", "max_mp", "attack", "defense", "agility"]:
-					logic.p[key] = int(GameState.player[key])
+					logic.p[key] = int(eff[key])
 				_refresh_bars()
 				_flash(_player_sprite, Color(1.8, 1.6, 0.8))
 				await _say(line)
@@ -370,6 +515,9 @@ func _say(text: String) -> void:
 
 
 func _confirm() -> void:
+	if auto_on:
+		await get_tree().create_timer(0.6).timeout
+		return
 	_msg.text += "  ▼"
 	_waiting_confirm = true
 	await _skip_requested
@@ -378,7 +526,7 @@ func _confirm() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not busy:
-		if event.is_action_pressed("cancel") and _cmd_box.columns == 1:
+		if event.is_action_pressed("cancel") and _cmd_box.columns == 1:  # 아이템 목록에서 뒤로
 			_show_commands()
 			get_viewport().set_input_as_handled()
 		return

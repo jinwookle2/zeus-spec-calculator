@@ -2,26 +2,72 @@
   "scarecrow": {
     "name": "수련용 허수아비",
     "sprite": "res://assets/enemies/scarecrow_battle.png",
-    "max_hp": 30, "max_mp": 0, "attack": 7, "defense": 2, "agility": 1,
-    "exp": 8, "gold": 0,
+    "max_hp": 30,
+    "max_mp": 0,
+    "attack": 7,
+    "defense": 2,
+    "agility": 1,
+    "exp": 8,
+    "gold": 0,
     "intro": "수련용 허수아비가 바람에 흔들린다. 어쩐지 비웃는 것 같다.",
     "actions": [
-      {"type": "attack", "weight": 45, "power": 1.0, "text": "허수아비가 바람을 타고 휙 돌아 팔로 때렸다!"},
-      {"type": "idle", "weight": 40, "text": "허수아비는 그저 서 있다. ...허수아비니까."},
-      {"type": "attack", "weight": 15, "power": 1.6, "text": "허수아비의 밀짚모자가 날아와 얼굴을 강타했다!"}
-    ]
+      {
+        "type": "attack",
+        "weight": 45,
+        "power": 1.0,
+        "text": "허수아비가 바람을 타고 휙 돌아 팔로 때렸다!"
+      },
+      {
+        "type": "idle",
+        "weight": 40,
+        "text": "허수아비는 그저 서 있다. ...허수아비니까."
+      },
+      {
+        "type": "attack",
+        "weight": 15,
+        "power": 1.6,
+        "text": "허수아비의 밀짚모자가 날아와 얼굴을 강타했다!"
+      }
+    ],
+    "auto_ok": true,
+    "qi": 4
   },
   "bandit": {
     "name": "초급 산적 덕팔",
     "sprite": "res://assets/enemies/bandit_battle.png",
-    "max_hp": 55, "max_mp": 10, "attack": 11, "defense": 4, "agility": 6,
-    "exp": 25, "gold": 15, "boss": false,
+    "max_hp": 55,
+    "max_mp": 10,
+    "attack": 11,
+    "defense": 4,
+    "agility": 6,
+    "exp": 25,
+    "gold": 15,
+    "boss": false,
     "intro": "초급 산적 덕팔이 몽둥이를 휘두르며 덤벼든다!",
     "actions": [
-      {"type": "attack", "weight": 60, "power": 1.0, "text": "덕팔의 몽둥이 휘두르기!"},
-      {"type": "attack", "weight": 15, "power": 1.5, "text": "덕팔의 필살! 산적 박치기!"},
-      {"type": "guard", "weight": 10, "text": "덕팔이 몽둥이를 앞세워 방어 자세를 취했다."},
-      {"type": "idle", "weight": 15, "text": "덕팔: \"잠깐, 내가 오늘 가스레인지 껐던가...?\""}
-    ]
+      {
+        "type": "attack",
+        "weight": 60,
+        "power": 1.0,
+        "text": "덕팔의 몽둥이 휘두르기!"
+      },
+      {
+        "type": "attack",
+        "weight": 15,
+        "power": 1.5,
+        "text": "덕팔의 필살! 산적 박치기!"
+      },
+      {
+        "type": "guard",
+        "weight": 10,
+        "text": "덕팔이 몽둥이를 앞세워 방어 자세를 취했다."
+      },
+      {
+        "type": "idle",
+        "weight": 15,
+        "text": "덕팔: \"잠깐, 내가 오늘 가스레인지 껐던가...?\""
+      }
+    ],
+    "qi": 12
   }
 }

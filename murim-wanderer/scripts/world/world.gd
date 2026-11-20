@@ -6,6 +6,13 @@ const PlayerScene := preload("res://scenes/player/player.tscn")
 const NpcScene := preload("res://scenes/npc/npc.tscn")
 const MapEventScript := preload("res://scripts/world/map_event.gd")
 const AreaTriggerScript := preload("res://scripts/world/area_trigger.gd")
+const GuideArrowScript := preload("res://scripts/world/guide_arrow.gd")
+const FishingScript := preload("res://scripts/ui/fishing.gd")
+const ShopScript := preload("res://scripts/ui/shop.gd")
+const AmbienceScript := preload("res://scripts/world/ambience.gd")
+
+var fishing: CanvasLayer
+var shop: CanvasLayer
 
 var map_data: Dictionary = {}
 var player: CharacterBody2D
@@ -31,6 +38,22 @@ func _ready() -> void:
 	_spawn_events()
 	_spawn_player()
 	GameState.unlock_input("transition")
+	GameState.autosave.call_deferred()  # 맵 진입(이동·전투 복귀·이어하기) 시 자동 저장
+	var arrow := Node2D.new()
+	arrow.set_script(GuideArrowScript)
+	arrow.player = player
+	arrow.z_index = 5
+	add_child(arrow)
+	fishing = CanvasLayer.new()
+	fishing.set_script(FishingScript)
+	add_child(fishing)
+	shop = CanvasLayer.new()
+	shop.set_script(ShopScript)
+	add_child(shop)
+	var amb := Node2D.new()
+	amb.set_script(AmbienceScript)
+	add_child(amb)
+	amb.setup(map_data, player)
 	hud.set_map_name(str(map_data.get("name", "")))
 	hud.menu_pressed.connect(_open_menu)
 	pause_menu.message.connect(hud.toast)
@@ -96,8 +119,17 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
+## 대화 효과로 여는 창: "shop" | "fishing"
+func open_overlay(kind: String) -> void:
+	match kind:
+		"shop":
+			shop.open_shop()
+		"fishing":
+			fishing.start()
+
+
 func _open_menu() -> void:
-	if dialogue_box.is_busy() or SceneRouter.is_busy():
+	if dialogue_box.is_busy() or SceneRouter.is_busy() or shop.is_open() or fishing.is_open():
 		return
 	pause_menu.open()
 

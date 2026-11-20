@@ -18,4 +18,7 @@ func _ready() -> void:
 func interact(_player: Node2D) -> void:
 	var box := get_tree().get_first_node_in_group("dialogue_box")
 	if box:
-		await box.run(str(def.get("dialogue", "")))
+		var acts: Dictionary = await box.run(str(def.get("dialogue", "")))
+		var w := get_tree().current_scene
+		if acts.has("open") and w and w.has_method("open_overlay"):
+			w.open_overlay(str(acts["open"]))

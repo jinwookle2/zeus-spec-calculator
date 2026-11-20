@@ -79,7 +79,7 @@ func is_open() -> bool:
 
 
 ## 대사 항목 하나를 실행: 대사 출력 → 효과 적용 → 획득 안내.
-func run(entry_id: String) -> void:
+func run(entry_id: String) -> Dictionary:
 	# 대사 → 획득 안내 사이에도 이동이 풀리지 않도록 전체 구간을 잠근다
 	GameState.lock_input("dialogue_run")
 	_running = true
@@ -94,6 +94,7 @@ func run(entry_id: String) -> void:
 		await show_lines(sys_lines)
 	_running = false
 	GameState.unlock_input("dialogue_run")
+	return d["actions"]
 
 
 ## 대사 실행 중(획득 안내 포함)이면 true

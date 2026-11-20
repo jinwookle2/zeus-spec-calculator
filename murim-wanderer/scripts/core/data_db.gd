@@ -10,6 +10,8 @@ var dialogue: Dictionary = {}
 var quests: Dictionary = {}
 var battle_config: Dictionary = {}
 var tiles: Dictionary = {}
+var growth: Dictionary = {}
+var economy: Dictionary = {}
 var maps_index: Dictionary = {}
 var _map_cache: Dictionary = {}
 
@@ -27,6 +29,8 @@ func reload() -> void:
 	quests = load_json("res://data/quests/quests.json")
 	battle_config = load_json("res://data/battle/battle_config.json")
 	tiles = load_json("res://data/maps/tiles.json")
+	growth = load_json("res://data/characters/growth.json")
+	economy = load_json("res://data/items/economy.json")
 	maps_index = load_json("res://data/maps/maps.json")
 	_map_cache.clear()
 

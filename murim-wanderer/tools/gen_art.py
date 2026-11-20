@@ -841,9 +841,117 @@ def build_characters():
     save(bg, "icon.png")
 
 
+# ---------------------------------------------------------------- 아이콘 (24x24) / 효과
+def icon_base(bg=(54, 40, 34, 255)):
+    img = new(24, 24)
+    rect(img, 1, 1, 22, 22, bg)
+    rect(img, 1, 1, 22, 1, (110, 86, 60, 255))
+    return img
+
+
+def icon_fist(img, ox=0, oy=0, c=SKIN):
+    rect(img, 7 + ox, 8 + oy, 16 + ox, 16 + oy, c)
+    for x in (9, 12, 15):
+        px(img, x + ox, 8 + oy, shade(c, 0.75))
+    rect(img, 7 + ox, 12 + oy, 9 + ox, 12 + oy, shade(c, 0.75))
+    rect(img, 8 + ox, 17 + oy, 15 + ox, 19 + oy, (160, 36, 36, 255))
+
+
+def build_icons():
+    out = {}
+    i = icon_base(); icon_fist(i); out["skill_fist"] = i
+    i = icon_base(); icon_fist(i, -3, -2, shade(SKIN, 0.85)); icon_fist(i, 3, 2); out["skill_combo"] = i
+    i = icon_base((90, 40, 30, 255))
+    for r, c in ((9, (200, 120, 50, 255)), (6, (236, 190, 90, 255)), (3, (255, 236, 170, 255))):
+        circle(i, 12, 12, r, c)
+    out["skill_kihap"] = i
+    i = icon_base((40, 56, 70, 255))
+    for k, y in enumerate((7, 12, 17)):
+        for x in range(4, 20):
+            px(i, x, y + int(2 * __import__("math").sin((x + k * 3) / 2.5)), (200, 226, 230, 255))
+    out["skill_breath"] = i
+    i = icon_base((50, 50, 60, 255))
+    rect(i, 6, 4, 17, 15, (150, 150, 160, 255))
+    for y in range(16, 21):
+        rect(i, 6 + (y - 15), y, 17 - (y - 15), y, (150, 150, 160, 255))
+    rect(i, 8, 6, 15, 7, (200, 200, 210, 255))
+    rect(i, 11, 8, 12, 16, (110, 110, 120, 255))
+    out["skill_wall"] = i
+    i = icon_base((40, 60, 52, 255))
+    rect(i, 5, 14, 15, 17, (46, 58, 92, 255))
+    rect(i, 15, 13, 19, 18, (46, 34, 30, 255))
+    for k in range(3):
+        rect(i, 3, 6 + k * 3, 12 - k * 2, 6 + k * 3, (210, 230, 220, 255))
+    out["skill_kick"] = i
+    i = icon_base((44, 60, 40, 255))
+    for (x, y) in ((8, 14), (12, 9), (16, 13)):
+        ellipse(i, x, y, 3, 5, (96, 150, 80, 255))
+        rect(i, x, y - 4, x, y + 4, (60, 100, 54, 255))
+    rect(i, 11, 15, 12, 20, (90, 70, 40, 255))
+    out["item_herb"] = i
+    i = icon_base((70, 40, 40, 255))
+    circle(i, 12, 13, 6, (176, 54, 42, 255))
+    circle(i, 10, 11, 2, (230, 140, 110, 255))
+    out["item_pill"] = i
+    i = icon_base((60, 50, 40, 255))
+    rect(i, 5, 6, 18, 18, PAPER)
+    for y in (9, 12, 15):
+        rect(i, 7, y, 15, y, (60, 50, 50, 255))
+    rect(i, 16, 13, 18, 18, (60, 50, 40, 255))
+    out["item_scroll"] = i
+    for key, c in (("fish_crucian", (130, 130, 110, 255)), ("fish_carp", (190, 120, 70, 255)), ("fish_gold", (232, 190, 70, 255))):
+        i = icon_base((40, 64, 72, 255))
+        ellipse(i, 11, 12, 7, 4, c)
+        for y in range(8, 17):
+            d = abs(y - 12)
+            rect(i, 18, y, 18 + (4 - d) // 1 if d < 4 else 18, y, c)
+        px(i, 7, 11, EYE)
+        out[key] = i
+    i = icon_base((60, 44, 34, 255)); icon_fist(i, 0, 0, (226, 216, 192, 255)); out["gear_fist"] = i
+    i = icon_base((40, 44, 60, 255))
+    rect(i, 6, 5, 17, 19, (46, 58, 92, 255))
+    rect(i, 3, 6, 6, 13, (32, 40, 66, 255))
+    rect(i, 17, 6, 20, 13, (32, 40, 66, 255))
+    for k in range(5):
+        px(i, 9 + k, 5 + k, (214, 206, 186, 255))
+    rect(i, 6, 13, 17, 14, (150, 40, 40, 255))
+    out["gear_robe"] = i
+    out["qi"] = icon_base((40, 40, 70, 255))
+    circle(out["qi"], 12, 12, 7, (110, 140, 220, 255))
+    circle(out["qi"], 12, 12, 4, (200, 220, 255, 255))
+    out["gold"] = icon_base((60, 50, 30, 255))
+    circle(out["gold"], 12, 12, 7, (210, 170, 70, 255))
+    rect(out["gold"], 10, 10, 13, 13, (60, 50, 30, 255))
+    for k, img in out.items():
+        save(img, f"assets/ui/icons/{k}.png")
+
+
+def build_effects():
+    g = new(64, 64)
+    for y in range(64):
+        for x in range(64):
+            d = ((x - 31.5) ** 2 + (y - 31.5) ** 2) ** 0.5 / 32
+            if d < 1:
+                g.putpixel((x, y), (255, 210, 140, int(140 * (1 - d) ** 2)))
+    save(g, "assets/ui/glow.png")
+    leaf = new(6, 4)
+    rect(leaf, 1, 1, 4, 2, (196, 120, 70, 255))
+    px(leaf, 0, 2, (160, 90, 50, 255))
+    px(leaf, 5, 1, (220, 150, 90, 255))
+    save(leaf, "assets/ui/leaf.png")
+    mist = new(128, 32)
+    for y in range(32):
+        for x in range(128):
+            a = int(90 * (1 - abs(y - 16) / 16) * (0.6 + 0.4 * ((x * 7 + y * 3) % 11) / 11))
+            mist.putpixel((x, y), (236, 230, 216, max(0, a)))
+    save(mist, "assets/ui/mist.png")
+
+
 if __name__ == "__main__":
     build_tileset()
     build_characters()
     build_title_bg()
     build_battle_bg()
     build_ui()
+    build_icons()
+    build_effects()

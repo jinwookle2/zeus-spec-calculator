@@ -12,6 +12,8 @@ var master_volume: float = 0.8
 var text_speed: String = "normal"
 var touch_controls: String = "auto"
 var fullscreen: bool = false
+var battle_speed: int = 1   # 1 또는 2 (전투 배속)
+var battle_auto: bool = false
 
 
 func _ready() -> void:
@@ -46,6 +48,10 @@ func set_value(key: String, value: Variant) -> void:
 				touch_controls = value
 		"fullscreen":
 			fullscreen = bool(value)
+		"battle_speed":
+			battle_speed = 2 if int(value) >= 2 else 1
+		"battle_auto":
+			battle_auto = bool(value)
 	_apply()
 	save()
 	changed.emit()
@@ -57,6 +63,8 @@ func save() -> void:
 	cfg.set_value("game", "text_speed", text_speed)
 	cfg.set_value("game", "touch_controls", touch_controls)
 	cfg.set_value("video", "fullscreen", fullscreen)
+	cfg.set_value("battle", "speed", battle_speed)
+	cfg.set_value("battle", "auto", battle_auto)
 	cfg.save(PATH)
 
 
@@ -70,6 +78,8 @@ func _load() -> void:
 	var tc = cfg.get_value("game", "touch_controls", touch_controls)
 	touch_controls = tc if TOUCH_MODES.has(tc) else "auto"
 	fullscreen = bool(cfg.get_value("video", "fullscreen", false))
+	battle_speed = 2 if int(cfg.get_value("battle", "speed", 1)) >= 2 else 1
+	battle_auto = bool(cfg.get_value("battle", "auto", false))
 
 
 func _apply() -> void:

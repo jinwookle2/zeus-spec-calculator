@@ -34,12 +34,15 @@ func run_all() -> void:
 	SaveManager.delete_save()
 	Settings.text_speed = "instant"
 	Settings.touch_controls = "on"
+	Settings.set_value("battle_auto", false)  # 이전 실행에서 저장된 전투 설정 초기화
+	Settings.set_value("battle_speed", 1)
 	DataDB.battle_config["message_delay"] = 0.03
 
 	test_data_integrity()
 	test_ktext()
 	test_battle_logic()
 	test_game_state()
+	test_growth()
 	test_save_load()
 	test_dialogue_data()
 	await test_main_menu()
@@ -320,6 +323,98 @@ func test_game_state() -> void:
 	check(not GameState.remove_item("herb", 99), "부족한 수량 제거 거부")
 
 
+# ------------------------------------------------------------------ 성장 시스템 (v0.3)
+func test_growth() -> void:
+	section("성장: 무공 습득 / 장착")
+	GameState.new_game()
+	check(GameState.skills == ["basic_fist", "combo_fist", "kihap"] and GameState.equipped.size() == 3, "Lv.1 무공 3종 습득·장착")
+	check(not GameState.has_notice(), "새 게임 직후 알림 없음")
+	for sid in DataDB.skills:
+		var icon := "res://assets/ui/icons/%s.png" % DataDB.skills[sid].get("icon", "")
+		check(ResourceLoader.exists(icon), "무공 아이콘 존재: %s" % sid)
+	var msgs := GameState.add_exp(20)
+	check(GameState.skills.has("breathing") and GameState.equipped.has("breathing"), "Lv.2 청풍호흡 습득 → 빈 칸에 자동 장착")
+	check(msgs.any(func(m): return "청풍호흡" in m), "새 무공 습득 메시지")
+	check(GameState.has_notice("new_skill"), "새 무공 알림(빨간 점)")
+	GameState.add_exp(30)
+	check(GameState.skills.has("iron_wall") and not GameState.equipped.has("iron_wall"), "Lv.3 철벽세 습득 (칸이 가득 차 미장착)")
+	check(not GameState.toggle_equip("iron_wall"), "칸이 가득 차면 장착 실패")
+	check(GameState.toggle_equip("kihap") and GameState.toggle_equip("iron_wall"), "기합 해제 후 철벽세 장착")
+	GameState.equipped = ["basic_fist"]
+	check(not GameState.toggle_equip("basic_fist"), "마지막 무공은 해제 불가")
+
+	section("성장: 강화")
+	GameState.new_game()
+	check(GameState.upgrade_skill("combo_fist") == "", "내공 부족 시 무공 강화 불가")
+	GameState.add_qi(100)
+	var msg := GameState.upgrade_skill("combo_fist")
+	check(msg != "" and GameState.skill_level("combo_fist") == 1 and GameState.qi == 90, "무공 강화: 내공 10 소모 → 1성")
+	var l := BattleLogic.new()
+	l.setup(GameState.effective_stats(), "bandit", DataDB.enemies["bandit"], DataDB.battle_config, DataDB.skills, 1, GameState.skill_levels, DataDB.growth)
+	check(is_equal_approx(l.skill_power("combo_fist"), 0.75 * 1.12), "강화 단계가 전투 위력에 반영 (×1.12)")
+	GameState.add_qi(500)
+	for i in 10:
+		GameState.upgrade_skill("combo_fist")
+	check(GameState.skill_level("combo_fist") == 5 and GameState.skill_upgrade_cost("combo_fist") == -1, "최대 5성에서 멈춤")
+	var atk0 := int(GameState.effective_stats()["attack"])
+	check(GameState.upgrade_gear("fist_wrap") != "" and int(GameState.player["gold"]) == 15, "주먹싸개 강화: 15냥 소모")
+	check(int(GameState.effective_stats()["attack"]) == atk0 + 2, "장비 강화 → 실제 공격력 +2")
+	GameState.player["gold"] = 5
+	check(GameState.upgrade_gear("martial_robe") == "", "냥 부족 시 장비 강화 불가")
+
+	section("성장: 폐관수련 (방치 보상)")
+	GameState.new_game()
+	var now := 2_000_000_000
+	GameState.last_active_unix = now - 2 * 60
+	GameState.compute_offline(now)
+	check(not GameState.has_offline_reward(), "5분 미만은 보상 없음")
+	GameState.last_active_unix = now - 2 * 3600
+	GameState.compute_offline(now)
+	check(GameState.has_offline_reward() and int(GameState.offline_pending["minutes"]) == 120, "2시간 → 120분 적립")
+	check(int(GameState.offline_pending["qi"]) == 60 and int(GameState.offline_pending["gold"]) == 24, "보상: 내공 60, 24냥 (Lv.1)")
+	check(GameState.has_notice("offline"), "수련 보상 알림(빨간 점)")
+	GameState.offline_pending = {}
+	GameState.last_active_unix = now - 30 * 3600
+	GameState.compute_offline(now)
+	check(int(GameState.offline_pending["minutes"]) == 480, "최대 8시간까지만 인정")
+	var q0 := GameState.qi
+	check(GameState.claim_offline() != "" and GameState.qi > q0 and not GameState.has_offline_reward(), "보상 받기 → 내공 증가")
+	check(not GameState.has_notice("offline"), "보상 받으면 알림 해제")
+
+	section("다음 할 일 안내")
+	GameState.new_game()
+	check("사범" in GameState.guide()["text"], "1: 사범에게 말 걸기")
+	GameState.set_flag("talked_master")
+	GameState.set_quest("first_training", "active")
+	check("산적" in GameState.guide()["text"] and GameState.guide()["map"] == "training_ground", "2: 수련장 산적")
+	GameState.current_map = "cheongpung"
+	check(GameState.guide_target_position() == MapBuilder.tile_center(Vector2i(14, 19)), "다른 맵 목표면 출구를 가리킴")
+	GameState.set_flag("bandit_defeated")
+	check("소식" in GameState.guide()["text"], "3: 사범에게 보고")
+
+	section("새 무공 / 자동 전투 판단")
+	l = _new_logic()
+	l.skill_levels = {}
+	l.p["mp"] = 0
+	var ev := l.player_skill("breathing")
+	check(int(l.p["mp"]) == 6 and l.player_guarding, "청풍호흡: MP 6 회복 + 방어 자세")
+	l = _new_logic("bandit", 9)
+	l.player_skill("iron_wall")
+	var hp_before := int(l.p["hp"])
+	l.enemy_turn({"type": "attack", "power": 1.0, "text": "공격"})
+	var taken := hp_before - int(l.p["hp"])
+	check(taken <= 3, "철벽세: 받는 피해 대폭 감소 (%d)" % taken)
+	check(l.guard_override < 0.0, "철벽세 효과는 한 턴 한정")
+	l = _new_logic()
+	l.p["hp"] = 10
+	check(l.auto_choose(["basic_fist", "combo_fist"], 2)["id"] == "herb", "자동: HP 위급하면 약초")
+	l.p["hp"] = 60
+	check(l.auto_choose(["basic_fist", "combo_fist"], 2)["id"] == "combo_fist", "자동: 가장 센 공격 무공 선택")
+	l.p["mp"] = 0
+	check(l.auto_choose(["basic_fist", "combo_fist", "breathing"], 0)["id"] == "breathing", "자동: MP 없으면 호흡으로 회복")
+	check(l.auto_choose(["basic_fist", "combo_fist"], 0)["id"] == "basic_fist", "자동: MP 없고 호흡도 없으면 기본권")
+
+
 # ------------------------------------------------------------------ 저장
 func test_save_load() -> void:
 	section("저장 / 불러오기")
@@ -384,6 +479,18 @@ func test_save_load() -> void:
 	check(SaveManager.load_game() == SaveManager.LoadResult.CORRUPTED, "모두 손상 → CORRUPTED 반환 (크래시 없음)")
 	check(int(GameState.player["level"]) == lvl and GameState.current_map == "cheongpung", "실패 시 현재 상태 유지")
 	check(not GameState.apply_dict({"player": "x"}), "형식이 틀린 데이터 적용 거부")
+	# 이전 버전(v1) 저장 파일 → 새 버전에서 불러오기
+	GameState.new_game()
+	var v1 := GameState.to_dict()
+	for key in ["equipped", "skill_levels", "gear", "qi", "notices", "last_active_unix"]:
+		v1.erase(key)
+	v1["player"]["level"] = 3
+	var env1 := {"version": 1, "saved_at": "2026-11-18T12:00:00", "checksum": SaveManager._checksum(v1), "data": v1}
+	f = FileAccess.open(SaveManager.save_path(), FileAccess.WRITE)
+	f.store_string(JSON.stringify(env1))
+	f.close()
+	check(SaveManager.load_game() == SaveManager.LoadResult.OK, "v1 저장 파일 불러오기 (마이그레이션)")
+	check(GameState.skills.has("iron_wall") and GameState.equipped.size() >= 1 and GameState.qi == 0, "v1 → 레벨에 맞는 무공·기본값 채움")
 	SaveManager.delete_save()
 	check(not SaveManager.has_save(), "저장 삭제")
 
@@ -525,6 +632,41 @@ func test_playthrough() -> void:
 	await press("interact")
 	check(box.is_open() and box._name_label.text == "상인 만복", "상인 대화")
 	await finish_dialogue(box)
+	await frames(3)
+	var shop: Node = w.shop
+	check(shop.is_open() and GameState.is_input_locked(), "상인 대화 후 만복상회(상점) 열림")
+	await shot("05b_shop")
+	var gold0 := int(GameState.player["gold"])
+	var herb0 := GameState.item_count("herb")
+	check(shop.buy("herb") and int(GameState.player["gold"]) == gold0 - 10 and GameState.item_count("herb") == herb0 + 1, "약초 구입 (10냥)")
+	GameState.player["gold"] = 0
+	check(not shop.buy("qi_pill"), "돈이 부족하면 구입 불가")
+	GameState.player["gold"] = gold0
+	await shop.close_shop()
+	check(not shop.is_open() and not GameState.is_input_locked(), "상점 닫기 → 이동 재개")
+	# 연못 두 번째 조사 → 낚시
+	place_player(Vector2i(6, 14), "down")
+	await seconds(0.3)
+	await press("interact")
+	await finish_dialogue(box)
+	await frames(3)
+	var fishing: Node = w.fishing
+	check(fishing.is_open(), "연못 재조사 → 낚시 미니게임 열림")
+	await seconds(0.3)
+	await shot("05c_fishing")
+	fishing.rng.seed = 3
+	check(fishing.judge(0.95, 0.2, 0.2) == "", "찌가 구간 밖이면 놓침")
+	var caught: String = fishing.judge(0.3, 0.2, 0.2)
+	check(caught in ["crucian", "carp", "golden_carp"], "구간 안이면 물고기 획득 (%s)" % caught)
+	check(fishing.judge(0.3, 0.2, 0.2) != "crucian", "정중앙 챔질은 잉어 이상 보장")
+	fishing._active = true
+	fishing._pos = fishing._zone_start + fishing._zone_width / 2.0
+	var got: String = fishing.strike()
+	check(got != "" and GameState.item_count(got) >= 1, "챔질 → 가방에 물고기 추가 (%s)" % got)
+	var g1 := int(GameState.player["gold"])
+	check(shop.sell(got) and int(GameState.player["gold"]) > g1, "물고기 판매 → 냥 증가")
+	await fishing.stop()
+	check(not GameState.is_input_locked(), "낚시 종료 → 이동 재개")
 	place_player(Vector2i(8, 9), "up")
 	await seconds(0.3)
 	await press("interact")
@@ -559,15 +701,26 @@ func test_playthrough() -> void:
 	check(box.is_open(), "확인(A) 터치 → NPC 대화")
 	await finish_dialogue(box)
 
+	section("다음 할 일 안내")
+	var hud: Node = w.get_node("HUD")
+	check("만복" in hud._guide_label.text or "연못" in hud._guide_label.text or "산적" in hud._guide_label.text, "HUD 안내 바: %s" % hud._guide_label.text)
+	check(GameState.guide_target_position() != null, "안내 목표 위치 계산")
+
 	section("일시정지 메뉴")
 	var pm: Node = w.get_node("PauseMenu")
 	await press("menu")
 	await frames(2)
 	check(pm.is_open() and get_tree().paused, "메뉴 열기 → 일시정지")
+	check(pm._tab_buttons.size() == 5 and pm._tab_buttons.has("skills") and pm._tab_buttons.has("training"), "하단 탭 5개 (상태/무공/가방/수련/시스템)")
 	await shot("06_menu_status")
 	pm._show_items()
 	await frames(2)
 	await shot("07_menu_items")
+	pm.show_tab("skills")
+	await frames(2)
+	await shot("07b_menu_skills")
+	pm.show_tab("training")
+	await frames(2)
 	pm.close()
 	await frames(3)
 	check(not pm.is_open() and not get_tree().paused, "메뉴 닫기")
@@ -604,21 +757,18 @@ func test_playthrough() -> void:
 	var cmd_texts: Array = []
 	for b in battle._cmd_box.get_children():
 		cmd_texts.append(b.text)
-	check(cmd_texts == ["공격", "무술", "방어", "아이템", "도주"], "전투 메뉴 5종: %s" % str(cmd_texts))
+	check(cmd_texts.slice(-4) == ["공격", "방어", "아이템", "도주"], "기본 명령 4종: %s" % str(cmd_texts.slice(-4)))
+	check(battle._skill_buttons.has("basic_fist") and battle._skill_buttons.has("combo_fist") and battle._skill_buttons.has("kihap"), "장착 무공 아이콘 버튼 표시")
+	check(battle._skill_buttons["combo_fist"].icon != null and battle._skill_buttons["combo_fist"].text == "MP5", "무공 아이콘 + MP 비용 표시")
+	check(not battle.auto_allowed and battle._auto_btn.text == "자동 잠김", "스토리 첫 전투는 자동 전투 잠김")
 	var exp_before := int(GameState.player["exp"]) + 0
 	var lvl_before := int(GameState.player["level"])
 	battle.logic.rng.seed = 12345
-	# 무술 메뉴 열기
-	battle._cmd_skills()
-	await frames(2)
-	await shot("10_battle_skills")
-	var skill_texts: Array = []
-	for b in battle._cmd_box.get_children():
-		skill_texts.append(b.text)
-	check("기본권" in skill_texts and "연속권 (MP 5)" in skill_texts and "기합 (MP 3)" in skill_texts, "무술 목록: %s" % str(skill_texts))
 	var mp0 := int(battle.logic.p["mp"])
 	var ehp0 := int(battle.logic.e["hp"])
 	battle._use_skill("kihap")
+	await frames(3)
+	await shot("10_battle_cutin")
 	await _wait_commands(battle)
 	check(int(battle.logic.p["mp"]) == mp0 - 3, "기합 사용 → MP 3 소모")
 	battle._use_skill("combo_fist")
@@ -671,6 +821,32 @@ func test_playthrough() -> void:
 		tries += 1
 	check(battle.logic.state == BattleLogic.State.FLED, "도주 성공")
 	check(await wait_scene(GameState.WORLD_SCENE), "도주 → 맵 복귀")
+
+	section("자동 전투 + 2배속 (허수아비)")
+	place_player(Vector2i(5, 6), "up")
+	await seconds(0.3)
+	await press("interact")
+	box = world().get_node("DialogueBox")
+	await finish_dialogue(box)
+	check(await wait_scene(GameState.BATTLE_SCENE), "허수아비 전투 시작")
+	battle = world()
+	await _wait_commands(battle)
+	check(battle.auto_allowed, "수련 상대는 자동 전투 허용")
+	var qi0 := GameState.qi
+	battle.toggle_speed()
+	check(Engine.time_scale == 2.0 and battle._speed_btn.text == "2배속", "2배속 켜기 → 게임 속도 2배")
+	battle.logic.rng.seed = 5
+	battle.toggle_auto()
+	check(battle.auto_on, "자동 전투 켜기")
+	var t_auto := Time.get_ticks_msec()
+	while get_tree().current_scene == battle and Time.get_ticks_msec() - t_auto < 20000:
+		await frames(2)
+	check(await wait_scene(GameState.WORLD_SCENE), "자동 전투로 허수아비 처치 → 맵 복귀 (입력 없이)")
+	check(Engine.time_scale == 1.0, "전투 종료 후 게임 속도 원래대로")
+	check(GameState.qi > qi0, "승리 보상 내공 획득 (%d → %d)" % [qi0, GameState.qi])
+	check(GameState.has_flag("beaten_scarecrow"), "처치 기록 (다음부터 자동 허용)")
+	Settings.set_value("battle_auto", false)
+	Settings.set_value("battle_speed", 1)
 
 	section("저장 → 타이틀 → 이어하기")
 	player = get_tree().get_first_node_in_group("player")

@@ -62,7 +62,8 @@ func interact(player: Node2D) -> void:
 	face_toward(player.global_position)
 	var box := get_tree().get_first_node_in_group("dialogue_box")
 	if box:
-		await box.run(str(def.get("dialogue", "")))
+		var acts: Dictionary = await box.run(str(def.get("dialogue", "")))
+		_open_overlay(acts)
 	if def.has("battle"):
 		hop()
 		GameState.start_battle(str(def["battle"]), str(def.get("win_flag", "")), npc_id())
@@ -75,3 +76,9 @@ func hop() -> void:
 	var t := create_tween()
 	t.tween_property(sprite, "position:y", base - 6.0, 0.06)
 	t.tween_property(sprite, "position:y", base, 0.06)
+
+
+func _open_overlay(acts: Dictionary) -> void:
+	var w := get_tree().current_scene
+	if acts.has("open") and w and w.has_method("open_overlay"):
+		w.open_overlay(str(acts["open"]))

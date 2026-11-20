@@ -12,12 +12,18 @@ var _map_label: Label
 var _toast: PanelContainer
 var _toast_label: Label
 var _root: Control
+var _guide_label: Label
+var _guide_panel: PanelContainer
+var _menu_dot: ColorRect
+var _cur_label: Label
 
 
 func _ready() -> void:
 	layer = 10
 	_build()
 	GameState.stats_changed.connect(refresh)
+	GameState.notices_changed.connect(refresh)
+	GameState.quest_changed.connect(refresh)
 	get_viewport().size_changed.connect(_apply_safe_area)
 	_apply_safe_area()
 	refresh()
@@ -59,6 +65,24 @@ func _build() -> void:
 		else:
 			_mp_bar = b
 			_mp_text = t
+	_cur_label = UiKit.label("", 12, UiKit.DIM)
+	v.add_child(_cur_label)
+
+	# 다음 할 일 안내 바 (상단 중앙) — 누르면 안내를 크게 띄움
+	_guide_panel = PanelContainer.new()
+	_guide_panel.add_theme_stylebox_override("panel", UiKit.box(Color8(30, 22, 22, 220), UiKit.VERMILION, 1, 5))
+	_guide_panel.anchor_left = 0.5
+	_guide_panel.anchor_right = 0.5
+	_guide_panel.offset_top = 8
+	_guide_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_guide_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	_guide_panel.gui_input.connect(func(ev):
+		if ev is InputEventMouseButton and ev.pressed:
+			toast("다음 할 일: " + str(GameState.guide()["text"]), 2.5))
+	_root.add_child(_guide_panel)
+	_guide_label = UiKit.label("", 12, UiKit.TEXT)
+	_guide_label.custom_minimum_size = Vector2(0, 0)
+	_guide_panel.add_child(_guide_label)
 
 	var right := HBoxContainer.new()
 	right.anchor_left = 1.0
@@ -79,6 +103,12 @@ func _build() -> void:
 	menu_btn.focus_mode = Control.FOCUS_NONE
 	menu_btn.pressed.connect(func(): menu_pressed.emit())
 	right.add_child(menu_btn)
+	_menu_dot = ColorRect.new()
+	_menu_dot.color = Color8(220, 50, 40)
+	_menu_dot.size = Vector2(7, 7)
+	_menu_dot.position = Vector2(40, 2)
+	_menu_dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	menu_btn.add_child(_menu_dot)
 
 	_toast = UiKit.panel_container(6)
 	_toast.anchor_left = 0.5
@@ -107,6 +137,9 @@ func refresh() -> void:
 	_mp_bar.value = int(p["mp"])
 	_hp_text.text = "%d/%d" % [int(p["hp"]), int(p["max_hp"])]
 	_mp_text.text = "%d/%d" % [int(p["mp"]), int(p["max_mp"])]
+	_cur_label.text = "%d냥 · 내공 %d" % [int(p["gold"]), GameState.qi]
+	_guide_label.text = "▶ " + str(GameState.guide()["text"])
+	_menu_dot.visible = GameState.has_notice()
 
 
 func toast(text: String, duration: float = 1.8) -> void:

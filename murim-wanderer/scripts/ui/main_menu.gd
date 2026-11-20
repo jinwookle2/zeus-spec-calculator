@@ -10,6 +10,7 @@ var _menu_box: Control
 var _title: Label
 var _title_box: Control
 var _t := 0.0
+var _mists: Array = []
 
 
 func _ready() -> void:
@@ -31,6 +32,18 @@ func _build() -> void:
 	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	add_child(bg)
+
+	# 흐르는 안개
+	for i in 2:
+		var m := TextureRect.new()
+		m.texture = load("res://assets/ui/mist.png")
+		m.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		m.size = Vector2(520, 70)
+		m.position = Vector2(-200 + i * 420, 170 + i * 50)
+		m.modulate = Color(1, 1, 1, 0.55)
+		m.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(m)
+		_mists.append(m)
 
 	var title_box := VBoxContainer.new()
 	title_box.anchor_left = 0.5
@@ -96,7 +109,7 @@ func _build() -> void:
 	_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(_info)
 
-	var ver := UiKit.label("프로토타입 v0.2", 12, Color8(60, 48, 44, 160))
+	var ver := UiKit.label("프로토타입 v0.3", 12, Color8(60, 48, 44, 160))
 	ver.anchor_left = 1.0
 	ver.anchor_right = 1.0
 	ver.offset_left = -110
@@ -115,6 +128,11 @@ func _build() -> void:
 func _process(delta: float) -> void:
 	_t += delta
 	_title.modulate.a = 0.85 + 0.15 * sin(_t * 1.5)
+	for i in _mists.size():
+		var m: TextureRect = _mists[i]
+		m.position.x += delta * (10.0 + i * 6.0)
+		if m.position.x > 660:
+			m.position.x = -540
 
 
 func _refresh_continue() -> void:
