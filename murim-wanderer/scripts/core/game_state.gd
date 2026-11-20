@@ -32,6 +32,7 @@ var qi: int = 0                    # 내공 (무공 강화 재화)
 var notices: Dictionary = {}       # 빨간 점 알림 ("new_skill" 등)
 var last_active_unix: int = 0
 var offline_pending: Dictionary = {}  # {"minutes", "qi", "gold"}
+var bonus_cards: Array = []        # 전투 보상으로 얻은 카드 (v0.5)
 var _active_timer := 0.0
 
 var _input_locks: Dictionary = {}
@@ -84,6 +85,7 @@ func new_game() -> void:
 	qi = 0
 	notices = {}
 	offline_pending = {}
+	bonus_cards = []
 	last_active_unix = int(Time.get_unix_time_from_system())
 	learn_skills_for_level(int(player["level"]))
 	notices.clear()  # 시작 무공은 알림 없음
@@ -316,6 +318,7 @@ func to_dict() -> Dictionary:
 		"qi": qi,
 		"notices": notices.duplicate(true),
 		"last_active_unix": last_active_unix,
+		"bonus_cards": bonus_cards.duplicate(),
 	}
 
 
@@ -386,6 +389,12 @@ func apply_dict(d: Dictionary) -> bool:
 		for k in nt:
 			if bool(nt[k]):
 				notices[str(k)] = true
+	bonus_cards = []
+	var bc = d.get("bonus_cards", [])
+	if typeof(bc) == TYPE_ARRAY:
+		for cid in bc:
+			if DataDB.cards.has(str(cid)):
+				bonus_cards.append(str(cid))
 	last_active_unix = int(d.get("last_active_unix", 0))
 	compute_offline()
 	last_active_unix = int(Time.get_unix_time_from_system())
@@ -627,3 +636,32 @@ func guide_target_position() -> Variant:
 			var r: Array = ex["rect"]
 			return MapBuilder.tile_center(Vector2i(int(r[0]), int(r[1])))
 	return null
+
+
+# ------------------------------------------------------------------ 카드 덱 (v0.5)
+## 전투 덱 = 기본 초식(starter) + 장착 무공의 초식(copies) + 보상 카드
+func build_deck() -> Array:
+	var deck: Array = []
+	for cid in DataDB.cards:
+		var c: Dictionary = DataDB.cards[cid]
+		for i in int(c.get("starter", 0)):
+			deck.append(cid)
+		var sk := str(c.get("skill", ""))
+		if sk != "" and equipped.has(sk):
+			for i in int(c.get("copies", 1)):
+				deck.append(cid)
+	deck.append_array(bonus_cards)
+	return deck
+
+
+## 무공 → 연결된 카드 id (없으면 "")
+func skill_card(sid: String) -> String:
+	for cid in DataDB.cards:
+		if str(DataDB.cards[cid].get("skill", "")) == sid:
+			return cid
+	return "strike" if sid == "basic_fist" else ""
+
+
+func add_card(card_id: String) -> void:
+	if DataDB.cards.has(card_id):
+		bonus_cards.append(card_id)

@@ -32,5 +32,18 @@
     "parry_window": 0.28,
     "parry_mult": 0.4,
     "windup_time": 0.45
+  },
+  "cards": {
+    "_comment": "카드 전투 규칙",
+    "energy": 3,
+    "hand_size": 5,
+    "max_hand": 10,
+    "atk_per_bonus": 3,
+    "def_per_bonus": 3,
+    "base_attack": 12,
+    "base_defense": 6,
+    "vulnerable_mult": 1.5,
+    "weak_mult": 0.75,
+    "reward_choices": 3
   }
 }

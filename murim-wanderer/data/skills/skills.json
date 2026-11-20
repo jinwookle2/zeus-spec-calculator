@@ -7,7 +7,7 @@
     "hits": 1,
     "learn_level": 1,
     "icon": "skill_fist",
-    "desc": "정직한 주먹 한 방. 일반 공격.",
+    "desc": "기본 초식 「기본권」 카드의 바탕. 장착 해제 불가.",
     "use_text": "{user}의 기본권!"
   },
   "combo_fist": {
@@ -18,7 +18,7 @@
     "hits": 2,
     "learn_level": 1,
     "icon": "skill_combo",
-    "desc": "MP 5. 쉬지 않고 두 번 때린다. 숨은 나중에 쉰다.",
+    "desc": "장착 시 「연속권」 카드 2장 (기1·MP3, 2연타). 강화하면 타격당 +1.",
     "use_text": "{user}의 연속권! 다다닥!"
   },
   "kihap": {
@@ -28,7 +28,7 @@
     "buff_multiplier": 1.8,
     "learn_level": 1,
     "icon": "skill_kihap",
-    "desc": "MP 3. 크게 소리쳐 다음 공격을 강화한다. 이웃이 깬다.",
+    "desc": "장착 시 「기합」 카드 1장 (기1·MP2, 다음 공격 2배·1장 뽑기).",
     "use_text": "{user}: 하아아아앗!!"
   },
   "breathing": {
@@ -38,7 +38,7 @@
     "amount": 6,
     "learn_level": 2,
     "icon": "skill_breath",
-    "desc": "MP 6 회복. 바람처럼 들이쉬고 내쉰다. 방어도 겸한다.",
+    "desc": "장착 시 「청풍호흡」 카드 1장 (기0, MP 회복+호신). 강화하면 +1.",
     "use_text": "{user}: 스읍... 후우..."
   },
   "iron_wall": {
@@ -48,7 +48,7 @@
     "guard_multiplier": 0.25,
     "learn_level": 3,
     "icon": "skill_wall",
-    "desc": "MP 4. 이번 턴 받는 피해를 크게 줄인다. 다리가 좀 저리다.",
+    "desc": "장착 시 「철벽세」 카드 1장 (기2·MP3, 호신 14). 강화하면 +3.",
     "use_text": "{user}의 철벽세!"
   },
   "wind_kick": {
@@ -59,7 +59,7 @@
     "hits": 1,
     "learn_level": 4,
     "icon": "skill_kick",
-    "desc": "MP 8. 바람을 가르는 회전 발차기. 청풍관의 비기.",
+    "desc": "장착 시 「청풍각」 카드 2장 (기2·MP5, 큰 피해+허점). 강화하면 +3.",
     "use_text": "{user}의 청풍각!!"
   }
 }

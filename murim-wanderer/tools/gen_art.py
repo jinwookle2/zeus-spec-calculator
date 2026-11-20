@@ -916,6 +916,65 @@ def build_icons():
         px(i, 9 + k, 5 + k, (214, 206, 186, 255))
     rect(i, 6, 13, 17, 14, (150, 40, 40, 255))
     out["gear_robe"] = i
+    i = icon_base((44, 50, 66, 255))
+    for y in range(5, 20):
+        hw = 7 if y < 14 else 7 - (y - 13)
+        rect(i, 12 - hw, y, 11 + hw, y, (176, 186, 200, 255))
+    rect(i, 11, 6, 12, 17, (110, 120, 136, 255))
+    out["card_block"] = i
+    i = icon_base((70, 50, 40, 255))
+    rect(i, 4, 14, 12, 17, (64, 62, 72, 255)); rect(i, 12, 13, 17, 18, (36, 30, 32, 255))
+    for k in range(3):
+        rect(i, 14 + k, 6 + k * 3, 18 + k, 6 + k * 3, (230, 220, 200, 255))
+    out["card_trip"] = i
+    i = icon_base((50, 46, 70, 255))
+    circle(i, 12, 12, 7, (200, 190, 240, 255)); circle(i, 12, 12, 4, (120, 100, 200, 255)); circle(i, 12, 12, 1, (255, 255, 255, 255))
+    out["card_focus"] = i
+    i = icon_base((60, 44, 40, 255))
+    for y in range(5, 20):
+        hw = 6 if y < 14 else 6 - (y - 13)
+        rect(i, 12 - hw, y, 11 + hw, y, (176, 120, 90, 255))
+    thick = [(6, 6), (9, 9), (12, 12), (15, 15), (18, 18)]
+    for x, y in thick:
+        rect(i, x, y, x + 1, y + 1, (255, 230, 160, 255))
+    out["card_counter"] = i
+    i = icon_base((60, 44, 34, 255))
+    rect(i, 6, 6, 15, 18, SKIN); rect(i, 6, 6, 15, 7, shade(SKIN, 0.8))
+    for x in (8, 10, 12, 14):
+        rect(i, x, 3, x, 6, SKIN)
+    rect(i, 15, 10, 19, 12, SKIN)
+    rect(i, 4, 19, 17, 20, (150, 150, 160, 255))
+    out["card_palm"] = i
+    i = icon_base((80, 30, 26, 255))
+    for k in range(3):
+        rect(i, 5 + k * 5, 18 - k * 4, 8 + k * 5, 20, (236, 120, 70, 255))
+    rect(i, 15, 4, 18, 8, (255, 220, 120, 255))
+    out["card_spirit"] = i
+    i = icon_base((60, 40, 44, 255))
+    circle(i, 12, 12, 7, (176, 54, 42, 255)); circle(i, 12, 12, 4, (240, 226, 200, 255)); circle(i, 12, 12, 1, (176, 54, 42, 255))
+    rect(i, 3, 11, 9, 12, (230, 230, 240, 255))
+    out["card_point"] = i
+    # 적 의도
+    i = new(24, 24)
+    for k in range(10):
+        rect(i, 5 + k, 18 - k, 7 + k, 19 - k, (230, 230, 240, 255))
+    rect(i, 3, 15, 10, 16, (150, 110, 60, 255)); rect(i, 4, 17, 6, 21, (110, 70, 40, 255))
+    out["intent_attack"] = outline(i)
+    i = new(24, 24)
+    for y in range(3, 21):
+        hw = 8 if y < 13 else 8 - (y - 12)
+        rect(i, 12 - hw, y, 11 + hw, y, (120, 160, 220, 255))
+    rect(i, 11, 4, 12, 18, (80, 110, 170, 255))
+    out["intent_block"] = outline(i)
+    i = new(24, 24)
+    for y in range(4, 14):
+        rect(i, 12 - (y - 4), y, 11 + (y - 4), y, (230, 90, 70, 255))
+    rect(i, 9, 14, 14, 20, (230, 90, 70, 255))
+    out["intent_buff"] = outline(i)
+    i = new(24, 24)
+    circle(i, 12, 12, 9, (200, 200, 190, 255))
+    rect(i, 10, 6, 14, 7, (60, 50, 50, 255)); rect(i, 14, 8, 15, 10, (60, 50, 50, 255)); rect(i, 12, 11, 13, 13, (60, 50, 50, 255)); rect(i, 12, 16, 13, 17, (60, 50, 50, 255))
+    out["intent_idle"] = outline(i)
     out["qi"] = icon_base((40, 40, 70, 255))
     circle(out["qi"], 12, 12, 7, (110, 140, 220, 255))
     circle(out["qi"], 12, 12, 4, (200, 220, 255, 255))

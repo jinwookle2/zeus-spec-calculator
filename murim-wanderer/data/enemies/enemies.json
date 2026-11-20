@@ -13,18 +13,18 @@
       {
         "type": "attack",
         "weight": 45,
-        "power": 1.0,
+        "damage": 5,
         "text": "허수아비가 바람을 타고 휙 돌아 팔로 때렸다!"
       },
       {
         "type": "idle",
-        "weight": 40,
+        "weight": 35,
         "text": "허수아비는 그저 서 있다. ...허수아비니까."
       },
       {
         "type": "attack",
-        "weight": 15,
-        "power": 1.6,
+        "weight": 20,
+        "damage": 8,
         "text": "허수아비의 밀짚모자가 날아와 얼굴을 강타했다!"
       }
     ],
@@ -34,7 +34,7 @@
   },
   "bandit": {
     "name": "초급 산적 덕팔",
-    "max_hp": 55,
+    "max_hp": 48,
     "max_mp": 10,
     "attack": 11,
     "defense": 4,
@@ -46,24 +46,31 @@
     "actions": [
       {
         "type": "attack",
-        "weight": 60,
-        "power": 1.0,
+        "weight": 45,
+        "damage": 7,
         "text": "덕팔의 몽둥이 휘두르기!"
       },
       {
         "type": "attack",
-        "weight": 15,
-        "power": 1.5,
+        "weight": 20,
+        "damage": 12,
         "text": "덕팔의 필살! 산적 박치기!"
       },
       {
-        "type": "guard",
-        "weight": 10,
-        "text": "덕팔이 몽둥이를 앞세워 방어 자세를 취했다."
+        "type": "block",
+        "weight": 15,
+        "block": 8,
+        "text": "덕팔이 몽둥이를 앞세워 방어 자세를 취했다. (호신 8)"
+      },
+      {
+        "type": "buff",
+        "weight": 12,
+        "strength": 2,
+        "text": "덕팔이 이를 간다! 기세 +2"
       },
       {
         "type": "idle",
-        "weight": 15,
+        "weight": 8,
         "text": "덕팔: \"잠깐, 내가 오늘 가스레인지 껐던가...?\""
       }
     ],

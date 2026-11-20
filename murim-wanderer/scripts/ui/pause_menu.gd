@@ -243,8 +243,16 @@ func _show_status() -> void:
 func _show_skills() -> void:
 	_clear()
 	GameState.clear_notice("new_skill")
-	_line("장착 %d / %d   — 전투에 들고 갈 무공을 고르고 내공으로 강화한다." % [GameState.equipped.size(), GameState.slot_count()], UiKit.DIM)
+	_line("장착 %d / %d   — 장착한 무공이 전투 덱의 초식(카드)이 된다. 내공으로 강화." % [GameState.equipped.size(), GameState.slot_count()], UiKit.DIM)
 	_currency_row()
+	var deck := GameState.build_deck()
+	var counts := {}
+	for cid in deck:
+		counts[cid] = int(counts.get(cid, 0)) + 1
+	var parts: Array = []
+	for cid in counts:
+		parts.append("%s x%d" % [DataDB.cards[cid]["name"], counts[cid]])
+	_line("전투 덱 %d장: %s" % [deck.size(), ", ".join(parts)], Color8(200, 220, 240))
 	for sid in GameState.skills:
 		var s: Dictionary = DataDB.skills.get(sid, {})
 		var r := _row()

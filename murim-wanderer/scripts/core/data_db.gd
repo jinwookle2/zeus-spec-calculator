@@ -13,6 +13,7 @@ var tiles: Dictionary = {}
 var growth: Dictionary = {}
 var economy: Dictionary = {}
 var portraits: Dictionary = {}
+var cards: Dictionary = {}
 var maps_index: Dictionary = {}
 var _map_cache: Dictionary = {}
 
@@ -33,6 +34,8 @@ func reload() -> void:
 	growth = load_json("res://data/characters/growth.json")
 	economy = load_json("res://data/items/economy.json")
 	portraits = load_json("res://data/characters/portraits.json")
+	cards = load_json("res://data/cards/cards.json")
+	cards.erase("_comment")
 	maps_index = load_json("res://data/maps/maps.json")
 	_map_cache.clear()
 

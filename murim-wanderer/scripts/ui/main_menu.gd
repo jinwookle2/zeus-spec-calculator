@@ -109,7 +109,7 @@ func _build() -> void:
 	_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(_info)
 
-	var ver := UiKit.label("프로토타입 v0.3", 12, Color8(60, 48, 44, 160))
+	var ver := UiKit.label("프로토타입 v0.5", 12, Color8(60, 48, 44, 160))
 	ver.anchor_left = 1.0
 	ver.anchor_right = 1.0
 	ver.offset_left = -110

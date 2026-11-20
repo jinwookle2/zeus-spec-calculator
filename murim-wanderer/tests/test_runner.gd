@@ -207,108 +207,149 @@ func test_ktext() -> void:
 	check(KText.josa("약초", "이/가") == "약초가", "약초가")
 
 
-# ------------------------------------------------------------------ 전투 로직
-func _new_logic(enemy: String = "bandit", seed_value: int = 7) -> BattleLogic:
+# ------------------------------------------------------------------ 전투 로직 (카드)
+func _new_logic(enemy: String = "bandit", seed_value: int = 7, deck: Array = []) -> BattleLogic:
 	var l := BattleLogic.new()
 	var stats := {"name": "도윤", "hp": 60, "max_hp": 60, "mp": 20, "max_mp": 20, "attack": 12, "defense": 6, "agility": 8}
-	l.setup(stats, enemy, DataDB.enemies[enemy], DataDB.battle_config, DataDB.skills, seed_value)
+	if deck.is_empty():
+		deck = ["strike", "strike", "strike", "strike", "defend", "defend", "defend", "defend", "combo_fist", "combo_fist", "kihap"]
+	l.setup(stats, enemy, DataDB.enemies[enemy], DataDB.battle_config, DataDB.cards, deck, seed_value, {})
 	return l
 
 
+## 손패를 원하는 카드로 고정하고 기를 채운다
+func _hand(l: BattleLogic, cards: Array) -> void:
+	l.hand = cards.duplicate()
+	l.p["energy"] = 3
+
+
 func test_battle_logic() -> void:
-	section("전투 로직")
+	section("카드 전투: 기본 규칙")
 	var l := _new_logic()
-	var min_ok := true
-	for i in 200:
-		min_ok = min_ok and int(l.calc_damage(1, 999, 1.0, true)["amount"]) >= 1
-	check(min_ok, "최소 피해량 1 보장 (공격 1 vs 방어 999, 방어 중)")
-	var in_range := true
-	for i in 200:
-		var d := int(l.calc_damage(12, 4, 1.0, false)["amount"])
-		in_range = in_range and d >= 8 and d <= 17
-	check(in_range, "난수 피해량 범위 (공12 방4 → 8~17)")
-	var sum_normal := 0
-	var sum_guard := 0
-	l.rng.seed = 1
-	for i in 300:
-		sum_normal += int(l.calc_damage(20, 4, 1.0, false)["amount"])
-	l.rng.seed = 1
-	for i in 300:
-		sum_guard += int(l.calc_damage(20, 4, 1.0, true)["amount"])
-	check(float(sum_guard) < float(sum_normal) * 0.6, "방어 시 피해 감소 (%d → %d)" % [sum_normal, sum_guard])
-
-	l = _new_logic()
+	l.start()
+	check(l.hand.size() == 5 and int(l.p["energy"]) == 3, "턴 시작: 카드 5장, 기 3")
+	check(l.draw_pile.size() == 6, "나머지 6장은 덱에")
+	check(not l.e["intent"].is_empty(), "적의 다음 행동(의도) 예고")
+	_hand(l, ["strike"])
 	var hp0 := int(l.e["hp"])
-	var ev := l.player_attack()
-	check(int(l.e["hp"]) < hp0 and int(l.p["mp"]) == 20, "기본 공격: 적 HP 감소, MP 소모 없음")
-	check(ev.any(func(x): return x["target"] == "enemy" and x["damage"] > 0), "공격 이벤트에 피해량 포함")
-
-	l = _new_logic()
-	ev = l.player_skill("combo_fist")
-	var hits := ev.filter(func(x): return x["fx"] in ["hit", "crit"]).size()
-	check(int(l.p["mp"]) == 15 and hits == 2, "연속권: MP 5 소모, 2연타")
-
-	l = _new_logic()
-	l.player_skill("kihap")
-	check(int(l.p["mp"]) == 17 and l.charge_mult > 1.0, "기합: MP 3 소모, 다음 공격 강화 상태")
-	l.player_attack()
-	check(is_equal_approx(l.charge_mult, 1.0), "기합 효과는 공격 1회 후 해제")
-	# 강화 공격이 평균적으로 더 강한지
-	var a := _new_logic("bandit", 3)
-	var b := _new_logic("bandit", 3)
-	b.charge_mult = 1.8
-	a.e["defense"] = 0
-	b.e["defense"] = 0
-	var da := 0
-	var db := 0
-	for i in 50:
-		da += int(a.calc_damage(12, 0, 1.0, false, 1.0)["amount"])
-		db += int(b.calc_damage(12, 0, 1.0, false, 1.8)["amount"])
-	check(db > da * 1.5, "기합 배율 적용 (%d vs %d)" % [da, db])
-
-	l = _new_logic()
-	l.p["mp"] = 2
-	ev = l.player_skill("combo_fist")
-	check(ev.size() == 1 and ev[0]["fx"] == "invalid" and int(l.p["mp"]) == 2, "MP 부족 시 사용 불가, 턴 소모 없음")
-
-	l = _new_logic()
+	l.play_card(0)
+	check(int(l.e["hp"]) == hp0 - 6 and int(l.p["energy"]) == 2, "기본권: 피해 6, 기 1 소모")
+	check(l.discard.has("strike") and l.hand.is_empty(), "사용한 카드는 버림 더미로")
+	_hand(l, ["defend"])
+	l.play_card(0)
+	check(int(l.p["block"]) == 5, "막기: 호신 5")
+	l.e["intent"] = {"type": "attack", "damage": 8, "text": "공격"}
 	var php := int(l.p["hp"])
-	l.enemy_turn({"type": "attack", "power": 1.0, "text": "공격"})
-	check(int(l.p["hp"]) < php, "적 공격으로 플레이어 HP 감소")
-	l.player_guard()
-	check(l.player_guarding, "방어 명령 → 방어 상태")
+	l.enemy_turn()
+	check(int(l.p["hp"]) == php - 3 and int(l.p["block"]) == 0, "적 공격 8 → 호신 5가 막고 3 피해")
+	l.start_player_turn()
+	check(int(l.p["block"]) == 0 and int(l.p["energy"]) == 3, "새 턴: 호신 초기화, 기 회복")
 
+	section("카드 전투: 비용 / 버림 / 섞기")
 	l = _new_logic()
-	var turns := 0
-	while l.state == BattleLogic.State.ONGOING and turns < 50:
-		l.player_attack()
-		if l.state == BattleLogic.State.ONGOING:
-			l.p["hp"] = 60  # 승리 테스트이므로 플레이어는 쓰러지지 않게
-			l.enemy_turn()
-		turns += 1
-	check(l.state == BattleLogic.State.WON and int(l.e["hp"]) == 0, "공격을 반복하면 적을 쓰러뜨림 (%d턴)" % turns)
-	check(l.enemy_turn().is_empty(), "전투 종료 후 적은 행동하지 않음")
+	_hand(l, ["combo_fist", "combo_fist"])
+	l.p["mp"] = 2
+	check(not l.can_play(0), "MP 부족 카드 사용 불가")
+	l.p["mp"] = 20
+	l.p["energy"] = 0
+	check(not l.can_play(0), "기 부족 카드 사용 불가")
+	var ev := l.play_card(0)
+	check(ev.size() == 1 and ev[0]["fx"] == "invalid", "사용 불가 시 아무 일도 없음")
+	l = _new_logic("bandit", 3, ["strike", "strike", "strike"])
+	l.start()
+	check(l.hand.size() == 3 and l.draw_pile.is_empty(), "덱이 적으면 있는 만큼만 뽑음")
+	l.end_player_turn()
+	check(l.hand.is_empty() and l.discard.size() == 3, "턴 종료: 손패 전부 버림")
+	l.start_player_turn()
+	check(l.hand.size() == 3 and l.discard.is_empty(), "덱이 비면 버림 더미를 섞어 다시 뽑음")
 
+	section("카드 전투: 초식 효과")
 	l = _new_logic()
-	l.p["hp"] = 1
-	l.enemy_turn({"type": "attack", "power": 1.0, "text": "공격"})
+	_hand(l, ["combo_fist"])
+	hp0 = int(l.e["hp"])
+	ev = l.play_card(0)
+	check(ev.filter(func(x): return x["fx"] in ["hit", "crit"]).size() == 2 and int(l.e["hp"]) == hp0 - 8 and int(l.p["mp"]) == 17, "연속권: 4 x2연타, MP 3")
+	_hand(l, ["kihap", "strike", "strike"])
+	l.draw_pile = ["defend"]
+	l.play_card(0)
+	check(l.charge_mult == 2.0 and l.hand.size() == 3, "기합: 다음 공격 2배 + 1장 뽑기")
+	hp0 = int(l.e["hp"])
+	l.play_card(0)
+	check(int(l.e["hp"]) == hp0 - 12 and l.charge_mult == 1.0, "기합 후 기본권 12 피해, 효과 소모")
+	l = _new_logic()
+	_hand(l, ["weak_point", "strike"])
+	l.play_card(0)
+	check(int(l.e["vulnerable"]) == 2, "급소 찌르기: 허점 2")
+	hp0 = int(l.e["hp"])
+	l.play_card(0)
+	check(int(l.e["hp"]) == hp0 - 9, "허점 상태: 피해 1.5배 (6 → 9)")
+	l = _new_logic()
+	_hand(l, ["trip"])
+	l.play_card(0)
+	l.e["intent"] = {"type": "attack", "damage": 8, "text": "공격"}
+	check(l.intent_damage() == 6, "발걸기 위축: 적 공격 8 → 6 예고")
+	l = _new_logic()
+	_hand(l, ["fighting_spirit", "strike"])
+	l.play_card(0)
+	check(int(l.p["strength"]) == 2 and l.card_stats("strike")["damage"] == 8, "투지: 기세 +2 → 기본권 8")
+	check(not l.discard.has("fighting_spirit"), "투지(지속형)는 버림 더미로 가지 않음")
+	l = _new_logic()
+	_hand(l, ["counter"])
+	l.play_card(0)
+	l.e["intent"] = {"type": "attack", "damage": 4, "text": "공격"}
+	hp0 = int(l.e["hp"])
+	l.enemy_turn()
+	check(int(l.e["hp"]) == hp0 - 3, "반격 자세: 맞으면 3 반격")
+	l = _new_logic()
+	l.e["intent"] = {"type": "block", "block": 8, "text": "방어"}
+	l.enemy_turn()
+	_hand(l, ["strike"])
+	hp0 = int(l.e["hp"])
+	l.play_card(0)
+	check(int(l.e["hp"]) == hp0 and int(l.e["block"]) == 2, "적 호신 8이 기본권 6을 막음")
+	l.e["intent"] = {"type": "buff", "strength": 2, "text": "기세"}
+	l.enemy_turn()
+	l.e["intent"] = {"type": "attack", "damage": 7, "text": "공격"}
+	check(l.intent_damage() == 9 and int(l.e["block"]) == 0, "적 기세 +2 → 공격 9 예고, 적 호신은 자기 턴에 사라짐")
+
+	section("카드 전투: 승패 / 타이밍")
+	l = _new_logic()
+	l.e["hp"] = 5
+	_hand(l, ["strike"])
+	ev = l.play_card(0)
+	check(l.state == BattleLogic.State.WON and ev[-1]["fx"] == "down", "적 HP 0 → 승리")
+	l = _new_logic()
+	l.p["hp"] = 3
+	l.e["intent"] = {"type": "attack", "damage": 7, "text": "공격"}
+	l.enemy_turn()
 	check(l.state == BattleLogic.State.LOST, "플레이어 HP 0 → 패배")
-
 	l = _new_logic()
+	l.e["hp"] = 999
+	_hand(l, ["strike"])
+	l.play_card(0, 1.3)
+	check(999 - int(l.e["hp"]) == 7, "완벽 타이밍: 6 x1.3 = 7")
+	l = _new_logic()
+	l.e["intent"] = {"type": "attack", "damage": 10, "text": "공격"}
+	l.enemy_turn(true)
+	check(int(l.p["hp"]) == 56, "받아치기: 10 x0.4 = 4 피해")
 	var c := l.flee_chance()
 	check(c >= 0.1 and c <= 0.95, "도주 확률 범위 (%.2f)" % c)
-	var fled := false
-	for i in 30:
-		l.player_flee()
-		if l.state == BattleLogic.State.FLED:
-			fled = true
-			break
-	check(fled, "도주 성공 가능")
+	var rw := l.reward_choices(3)
+	check(rw.size() == 3 and rw[0] != rw[1] and rw[1] != rw[2] and DataDB.cards[rw[0]].get("pool", "") == "reward", "보상 후보 3장 (서로 다름)")
 
+	section("카드 전투: 자동 선택")
 	l = _new_logic()
-	l.p["hp"] = 10
-	l.player_item(DataDB.items["herb"])
-	check(int(l.p["hp"]) == 40, "약초 사용 → HP 30 회복")
+	l.e["intent"] = {"type": "idle", "text": "멍"}
+	_hand(l, ["defend", "strike"])
+	check(l.hand[l.auto_pick()] == "strike", "위협 없으면 공격 카드")
+	l.e["intent"] = {"type": "attack", "damage": 12, "text": "공격"}
+	l.p["hp"] = 20
+	_hand(l, ["strike", "defend"])
+	check(l.hand[l.auto_pick()] == "defend", "HP 낮고 큰 공격 예고면 막기")
+	l.e["hp"] = 5
+	check(l.hand[l.auto_pick()] == "strike", "마무리 가능하면 공격 우선")
+	l.p["energy"] = 0
+	check(l.auto_pick() == -1, "기가 없으면 턴 종료")
 
 
 # ------------------------------------------------------------------ 상태
@@ -361,8 +402,11 @@ func test_growth() -> void:
 	var msg := GameState.upgrade_skill("combo_fist")
 	check(msg != "" and GameState.skill_level("combo_fist") == 1 and GameState.qi == 90, "무공 강화: 내공 10 소모 → 1성")
 	var l := BattleLogic.new()
-	l.setup(GameState.effective_stats(), "bandit", DataDB.enemies["bandit"], DataDB.battle_config, DataDB.skills, 1, GameState.skill_levels, DataDB.growth)
-	check(is_equal_approx(l.skill_power("combo_fist"), 0.75 * 1.12), "강화 단계가 전투 위력에 반영 (×1.12)")
+	l.setup(GameState.effective_stats(), "bandit", DataDB.enemies["bandit"], DataDB.battle_config, DataDB.cards, GameState.build_deck(), 1, GameState.skill_levels)
+	check(l.card_stats("combo_fist")["damage"] == 5, "무공 1성 → 연속권 카드 타격당 4 → 5")
+	check(GameState.build_deck().count("combo_fist") == 2 and GameState.build_deck().count("strike") == 4, "덱: 기본권 4 + 막기 4 + 장착 무공 카드")
+	GameState.add_card("iron_palm")
+	check(GameState.build_deck().has("iron_palm"), "보상 카드가 덱에 추가")
 	GameState.add_qi(500)
 	for i in 10:
 		GameState.upgrade_skill("combo_fist")
@@ -403,42 +447,6 @@ func test_growth() -> void:
 	GameState.set_flag("bandit_defeated")
 	check("소식" in GameState.guide()["text"], "3: 사범에게 보고")
 
-	section("타이밍 배율")
-	var la := _new_logic("bandit", 4)
-	var lb := _new_logic("bandit", 4)
-	la.e["hp"] = 999
-	lb.e["hp"] = 999
-	la.player_skill("basic_fist", 1.0)
-	lb.player_skill("basic_fist", 1.3)
-	check(999 - int(lb.e["hp"]) >= 999 - int(la.e["hp"]), "완벽 타이밍 피해 ≥ 보통 (%d vs %d)" % [999 - int(lb.e["hp"]), 999 - int(la.e["hp"])])
-	la = _new_logic("bandit", 6)
-	lb = _new_logic("bandit", 6)
-	var atk := {"type": "attack", "power": 1.0, "text": "공격"}
-	la.enemy_turn(atk, false)
-	lb.enemy_turn(atk, true)
-	check(60 - int(lb.p["hp"]) < 60 - int(la.p["hp"]), "받아치기 피해 감소 (%d → %d)" % [60 - int(la.p["hp"]), 60 - int(lb.p["hp"])])
-
-	section("새 무공 / 자동 전투 판단")
-	l = _new_logic()
-	l.skill_levels = {}
-	l.p["mp"] = 0
-	var ev := l.player_skill("breathing")
-	check(int(l.p["mp"]) == 6 and l.player_guarding, "청풍호흡: MP 6 회복 + 방어 자세")
-	l = _new_logic("bandit", 9)
-	l.player_skill("iron_wall")
-	var hp_before := int(l.p["hp"])
-	l.enemy_turn({"type": "attack", "power": 1.0, "text": "공격"})
-	var taken := hp_before - int(l.p["hp"])
-	check(taken <= 3, "철벽세: 받는 피해 대폭 감소 (%d)" % taken)
-	check(l.guard_override < 0.0, "철벽세 효과는 한 턴 한정")
-	l = _new_logic()
-	l.p["hp"] = 10
-	check(l.auto_choose(["basic_fist", "combo_fist"], 2)["id"] == "herb", "자동: HP 위급하면 약초")
-	l.p["hp"] = 60
-	check(l.auto_choose(["basic_fist", "combo_fist"], 2)["id"] == "combo_fist", "자동: 가장 센 공격 무공 선택")
-	l.p["mp"] = 0
-	check(l.auto_choose(["basic_fist", "combo_fist", "breathing"], 0)["id"] == "breathing", "자동: MP 없으면 호흡으로 회복")
-	check(l.auto_choose(["basic_fist", "combo_fist"], 0)["id"] == "basic_fist", "자동: MP 없고 호흡도 없으면 기본권")
 
 
 # ------------------------------------------------------------------ 저장
@@ -782,24 +790,27 @@ func test_playthrough() -> void:
 	var battle: Node = world()
 	check(battle.enemy_id == "bandit", "적: 초급 산적")
 	await _wait_commands(battle)
+	await seconds(0.4)
 	await shot("09_battle")
-	var cmd_texts: Array = []
-	for b in battle._cmd_box.get_children():
-		cmd_texts.append(b.text)
-	check(cmd_texts.slice(-4) == ["공격", "방어", "아이템", "도주"], "기본 명령 4종: %s" % str(cmd_texts.slice(-4)))
-	check(battle._skill_buttons.has("basic_fist") and battle._skill_buttons.has("combo_fist") and battle._skill_buttons.has("kihap"), "장착 무공 아이콘 버튼 표시")
-	check(battle._skill_buttons["combo_fist"].icon != null and battle._skill_buttons["combo_fist"].text == "MP5", "무공 아이콘 + MP 비용 표시")
+	check(battle._card_nodes.size() == 5 and battle._energy_label.text == "3/3", "카드 5장 + 기 3/3 표시")
+	check(battle._intent_box.visible and battle._intent_icon.texture != null, "적 머리 위 의도 표시")
+	check(not battle._end_btn.disabled, "턴 종료 버튼")
 	check(not battle.auto_allowed and battle._auto_btn.text == "자동 잠김", "스토리 첫 전투는 자동 전투 잠김")
 	var exp_before := int(GameState.player["exp"]) + 0
 	var lvl_before := int(GameState.player["level"])
 	battle.logic.rng.seed = 12345
-	section("역동적 전투: 타이밍 · 받아치기 · 자세")
+
+	section("카드 전투: 타이밍 · 받아치기 · 자세")
 	check(battle._player_sprite.texture.resource_path.ends_with("doyun_ready.png"), "대기 자세 (ready)")
-	battle._use_skill("basic_fist")
+	if not battle.logic.hand.has("strike"):
+		battle.logic.hand[0] = "strike"
+		battle._refresh_hand()
+	var ehp_start := int(battle.logic.e["hp"])
+	battle.play_card_index(battle.logic.hand.find("strike"))
 	var tt := Time.get_ticks_msec()
 	while not battle.is_timing_active() and Time.get_ticks_msec() - tt < 2000:
 		await frames(1)
-	check(battle.is_timing_active(), "공격 시 타이밍 원 표시")
+	check(battle.is_timing_active(), "공격 카드 → 타이밍 원 표시")
 	await seconds(battle._cfg_t("ring_time", 0.55) - 0.02)
 	battle.timing_press()
 	await frames(2)
@@ -810,58 +821,53 @@ func test_playthrough() -> void:
 		saw_punch = battle._player_sprite.texture.resource_path.ends_with("doyun_punch.png")
 		await frames(1)
 	check(saw_punch, "돌진 후 주먹 자세로 타격")
+	await _wait_commands(battle)
+	check(int(battle.logic.e["hp"]) <= ehp_start - 7, "완벽 기본권 피해 7 이상 (%d → %d)" % [ehp_start, battle.logic.e["hp"]])
+	check(battle._card_nodes.size() == 4 and battle._energy_label.text == "2/3", "카드 1장 사용 → 손패 4장, 기 2")
 	var parried := false
-	tt = Time.get_ticks_msec()
-	while battle.busy and Time.get_ticks_msec() - tt < 6000:
-		if battle.is_timing_active() and battle.last_timing != "parry":
-			battle.timing_press()
-			await frames(2)
-			parried = battle.last_timing == "parry"
-		await frames(1)
-	await _wait_commands(battle)
-	if not parried:
-		# 적이 이번 턴 공격하지 않았으면 다음 턴에 다시 시도
-		for k in 3:
-			if parried or battle.logic.state != BattleLogic.State.ONGOING:
-				break
-			battle._cmd_guard()
-			tt = Time.get_ticks_msec()
-			while battle.busy and Time.get_ticks_msec() - tt < 6000:
-				if battle.is_timing_active():
-					battle.timing_press()
-					await frames(2)
-					parried = parried or battle.last_timing == "parry"
-				await frames(1)
-			await _wait_commands(battle)
-	check(parried, "적의 「!」에 맞춰 누르면 받아치기")
-	await shot("10b_battle_dynamic")
-	var mp0 := int(battle.logic.p["mp"])
-	var ehp0 := int(battle.logic.e["hp"])
-	battle._use_skill("kihap")
-	await frames(3)
-	await shot("10_battle_cutin")
-	await _wait_commands(battle)
-	check(int(battle.logic.p["mp"]) == mp0 - 3, "기합 사용 → MP 3 소모")
-	battle._use_skill("combo_fist")
-	await _wait_commands(battle)
-	check(int(battle.logic.e["hp"]) < ehp0, "연속권 → 적 HP 감소 (%d → %d)" % [ehp0, battle.logic.e["hp"]])
-	battle._cmd_guard()
-	await _wait_commands(battle)
-	var guard_ok: bool = battle.logic.state == BattleLogic.State.ONGOING
-	check(guard_ok, "방어 후 전투 계속")
-	var rounds := 0
-	while battle.logic.state == BattleLogic.State.ONGOING and rounds < 30:
-		if int(battle.logic.p["hp"]) < 25 and GameState.item_count("herb") > 0:
-			battle._use_item("herb")
-		else:
-			battle._cmd_attack()
+	for k in 5:
+		if parried or battle.logic.state != BattleLogic.State.ONGOING:
+			break
+		battle.logic.p["hp"] = maxi(int(battle.logic.p["hp"]), 30)
+		battle.end_turn()
+		tt = Time.get_ticks_msec()
+		while battle.busy and Time.get_ticks_msec() - tt < 6000 and battle.logic.state == BattleLogic.State.ONGOING:
+			if battle.is_timing_active():
+				battle.timing_press()
+				await frames(2)
+				parried = parried or battle.last_timing == "parry"
+			await frames(1)
 		await _wait_commands(battle)
-		rounds += 1
-	check(battle.logic.state == BattleLogic.State.WON, "산적을 쓰러뜨림 (%d라운드)" % rounds)
-	await seconds(1.5)
+	check(parried, "적의 「!」에 맞춰 누르면 받아치기")
+	check(battle._card_nodes.size() == 5 and battle.logic.turn >= 2, "다음 턴: 카드 5장 새로 뽑음")
+	await shot("10b_battle_dynamic")
+	var actions := 0
+	var cutin_shot := false
+	while battle.logic.state == BattleLogic.State.ONGOING and actions < 60:
+		battle.logic.p["hp"] = maxi(int(battle.logic.p["hp"]), 25)
+		var idx: int = battle.logic.auto_pick()
+		if idx >= 0:
+			var cid: String = battle.logic.hand[idx]
+			battle.play_card_index(idx)
+			if not cutin_shot and cid != "strike" and DataDB.cards[cid].has("damage"):
+				await frames(4)
+				await shot("10_battle_cutin")
+				cutin_shot = true
+		else:
+			battle.end_turn()
+		await _wait_commands(battle)
+		actions += 1
+	check(battle.logic.state == BattleLogic.State.WON, "카드로 산적을 쓰러뜨림 (%d수)" % actions)
+	tt = Time.get_ticks_msec()
+	while battle._reward_panel == null and Time.get_ticks_msec() - tt < 8000:
+		await frames(2)
+	check(battle._reward_panel != null and battle.reward_options.size() == 3, "승리 보상: 초식 카드 3장 중 선택")
 	check(battle._p_hp_txt.text == "%d/%d" % [GameState.player["hp"], GameState.player["max_hp"]], "레벨업 후 전투 화면 HP 표시 갱신 (%s)" % battle._p_hp_txt.text)
 	await shot("11_battle_win")
-	await _confirm_battle_end(battle)
+	var picked: String = battle.reward_options[0]
+	var deck_before := GameState.build_deck().size()
+	battle.choose_reward(0)
+	check(GameState.build_deck().size() == deck_before + 1 and GameState.bonus_cards.has(picked), "고른 카드가 덱에 추가 (%s)" % picked)
 	check(await wait_scene(GameState.WORLD_SCENE), "전투 종료 → 맵 복귀")
 	var exp_gained := int(GameState.player["exp"]) != exp_before or int(GameState.player["level"]) > lvl_before
 	check(exp_gained, "경험치 획득 (Lv.%d → Lv.%d, EXP %d → %d)" % [lvl_before, GameState.player["level"], exp_before, GameState.player["exp"]])
@@ -877,7 +883,7 @@ func test_playthrough() -> void:
 	section("허수아비 수련 + 도주")
 	player = get_tree().get_first_node_in_group("player")
 	place_player(Vector2i(5, 6), "up")
-	await frames(3)
+	await seconds(0.3)
 	await press("interact")
 	box = world().get_node("DialogueBox")
 	await finish_dialogue(box)
@@ -887,6 +893,7 @@ func test_playthrough() -> void:
 	battle.logic.rng.seed = 1
 	var tries := 0
 	while battle.logic.state == BattleLogic.State.ONGOING and tries < 15:
+		battle.logic.p["hp"] = maxi(int(battle.logic.p["hp"]), 30)
 		battle._cmd_flee()
 		await _wait_commands(battle)
 		tries += 1
@@ -904,17 +911,19 @@ func test_playthrough() -> void:
 	await _wait_commands(battle)
 	check(battle.auto_allowed, "수련 상대는 자동 전투 허용")
 	var qi0 := GameState.qi
+	var cards0 := GameState.bonus_cards.size()
 	battle.toggle_speed()
 	check(Engine.time_scale == 2.0 and battle._speed_btn.text == "2배속", "2배속 켜기 → 게임 속도 2배")
 	battle.logic.rng.seed = 5
 	battle.toggle_auto()
 	check(battle.auto_on, "자동 전투 켜기")
 	var t_auto := Time.get_ticks_msec()
-	while get_tree().current_scene == battle and Time.get_ticks_msec() - t_auto < 20000:
+	while get_tree().current_scene == battle and Time.get_ticks_msec() - t_auto < 30000:
 		await frames(2)
 	check(await wait_scene(GameState.WORLD_SCENE), "자동 전투로 허수아비 처치 → 맵 복귀 (입력 없이)")
 	check(Engine.time_scale == 1.0, "전투 종료 후 게임 속도 원래대로")
 	check(GameState.qi > qi0, "승리 보상 내공 획득 (%d → %d)" % [qi0, GameState.qi])
+	check(GameState.bonus_cards.size() == cards0 + 1, "자동 전투 보상 카드 자동 획득")
 	check(GameState.has_flag("beaten_scarecrow"), "처치 기록 (다음부터 자동 허용)")
 	Settings.set_value("battle_auto", false)
 	Settings.set_value("battle_speed", 1)
@@ -954,14 +963,12 @@ func test_playthrough() -> void:
 	check(await wait_scene(GameState.BATTLE_SCENE), "전투 시작")
 	battle = world()
 	await _wait_commands(battle)
-	battle.logic.p["hp"] = 1
-	battle.logic.p["defense"] = 0
-	for i in 10:
+	for i in 12:
 		if battle.logic.state != BattleLogic.State.ONGOING:
 			break
-		battle._cmd_guard()
-		await _wait_commands(battle)
 		battle.logic.p["hp"] = 1
+		battle.end_turn()
+		await _wait_commands(battle)
 	await _confirm_battle_end(battle)
 	check(await wait_scene(GameState.WORLD_SCENE), "패배 → 맵으로 이송")
 	check(GameState.current_map == "cheongpung" and int(GameState.player["hp"]) >= 1, "청풍관 앞에서 HP 회복된 상태로 깨어남")
@@ -994,7 +1001,7 @@ func _wait_commands(battle: Node, timeout: float = 15.0) -> void:
 	while t < timeout:
 		if not is_instance_valid(battle) or get_tree().current_scene != battle:
 			return
-		if not battle.busy or battle._waiting_confirm:
+		if not battle.busy or battle._waiting_confirm or battle._reward_panel != null:
 			await frames(2)
 			return
 		await get_tree().process_frame

@@ -5,7 +5,7 @@ extends Node
 ## - 임시 파일에 쓴 뒤 교체하므로 저장 중 강제 종료돼도 기존 저장이 깨지지 않는다.
 ## - 체크섬/형식이 맞지 않으면 백업본을 시도하고, 그래도 실패하면 안전하게 거부한다.
 
-const SAVE_VERSION := 2  # v2: 무공 장착/강화, 장비, 내공, 폐관수련
+const SAVE_VERSION := 3  # v2: 무공 장착/강화, 장비, 내공, 폐관수련 / v3: 보상 카드
 
 enum LoadResult { OK, NO_SAVE, CORRUPTED, RESTORED_FROM_BACKUP }
 
@@ -112,6 +112,8 @@ func migrate(data: Dictionary, from_version: int) -> Dictionary:
 				d[key] = [] if key == "equipped" else {}
 		if not d.has("qi"):
 			d["qi"] = 0
+	if from_version < 3 and not d.has("bonus_cards"):
+		d["bonus_cards"] = []
 	return d
 
 
