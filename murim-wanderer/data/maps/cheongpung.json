@@ -1,0 +1,196 @@
+{
+  "id": "cheongpung",
+  "name": "청풍마을",
+  "size": [
+    30,
+    20
+  ],
+  "spawn": [
+    15,
+    7
+  ],
+  "tiles": [
+    "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+    "T............................T",
+    "T......,..bbbbbbbbbbT.....T..T",
+    "T.rrrrr...BBBBBBBBBB.........T",
+    "T.RRRRR.T.woowDDwoow..ggggg..T",
+    "T.owDwo......S##......GGGGG..T",
+    "T...#.........##......woDwo..T",
+    "T..J#......ssssssss.TS..#J...T",
+    "T...#,.....sLssssLs.....#....T",
+    "T#*########ssssssss##########T",
+    "T.......,..sOssssss..,.....,.T",
+    "T.rrrrr....ssssssssX..rrrrr..T",
+    "T.RRRRR..T....##...*..RRRRRT.T",
+    "T.owDwo.......##.,....owDwo..T",
+    "T...#####################....T",
+    "T.,..~~~...,..##...,.......*.T",
+    "T...~~~~~...,.##.==========..T",
+    "T...~~~~~X.T..##.,,,,,,,,,,..T",
+    "T.............##.............T",
+    "TTTTTTTTTTTTTT##TTTTTTTTTTTTTT"
+  ],
+  "npcs": [
+    {
+      "id": "master",
+      "sprite": "master",
+      "name": "도장 사범 백운",
+      "dialogue": "master",
+      "tile": [
+        17,
+        5
+      ],
+      "facing": "down"
+    },
+    {
+      "id": "villager",
+      "sprite": "villager",
+      "name": "마을 주민 순이",
+      "dialogue": "villager",
+      "tile": [
+        8,
+        8
+      ],
+      "facing": "right",
+      "wander": true
+    },
+    {
+      "id": "merchant",
+      "sprite": "merchant",
+      "name": "상인 만복",
+      "dialogue": "merchant",
+      "tile": [
+        23,
+        7
+      ],
+      "facing": "down"
+    }
+  ],
+  "events": [
+    {
+      "id": "dojo_sign",
+      "type": "talk",
+      "tile": [
+        13,
+        5
+      ],
+      "dialogue": "sign_dojo"
+    },
+    {
+      "id": "shop_sign",
+      "type": "talk",
+      "tile": [
+        21,
+        7
+      ],
+      "dialogue": "sign_shop"
+    },
+    {
+      "id": "village_jar",
+      "type": "talk",
+      "tile": [
+        3,
+        7
+      ],
+      "dialogue": "jar_secret"
+    },
+    {
+      "id": "shop_jar",
+      "type": "talk",
+      "tile": [
+        25,
+        7
+      ],
+      "dialogue": "jar_shop"
+    },
+    {
+      "id": "well",
+      "type": "talk",
+      "tile": [
+        12,
+        10
+      ],
+      "dialogue": "well"
+    },
+    {
+      "id": "dojo_door",
+      "type": "talk",
+      "tile": [
+        14,
+        4
+      ],
+      "dialogue": "dojo_door"
+    },
+    {
+      "id": "dojo_door2",
+      "type": "talk",
+      "tile": [
+        15,
+        4
+      ],
+      "dialogue": "dojo_door"
+    },
+    {
+      "id": "pond",
+      "type": "talk",
+      "tile": [
+        6,
+        15
+      ],
+      "dialogue": "pond_secret"
+    },
+    {
+      "id": "house1_door",
+      "type": "talk",
+      "tile": [
+        4,
+        5
+      ],
+      "dialogue": "door_locked"
+    },
+    {
+      "id": "house2_door",
+      "type": "talk",
+      "tile": [
+        4,
+        13
+      ],
+      "dialogue": "door_locked"
+    },
+    {
+      "id": "house3_door",
+      "type": "talk",
+      "tile": [
+        24,
+        13
+      ],
+      "dialogue": "door_snore"
+    },
+    {
+      "id": "shop_door",
+      "type": "talk",
+      "tile": [
+        24,
+        6
+      ],
+      "dialogue": "shop_door"
+    }
+  ],
+  "exits": [
+    {
+      "rect": [
+        14,
+        19,
+        2,
+        1
+      ],
+      "to": "training_ground",
+      "spawn": [
+        10,
+        2
+      ],
+      "facing": "down"
+    }
+  ]
+}

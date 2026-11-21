@@ -1,0 +1,53 @@
+{
+  "herb": {
+    "name": "약초",
+    "type": "heal_hp",
+    "amount": 30,
+    "price": 10,
+    "usable_in_battle": true,
+    "desc": "HP를 30 회복한다. 쓴맛이 인생 같다.",
+    "icon": "item_herb",
+    "sell": 4
+  },
+  "qi_pill": {
+    "name": "기력환",
+    "type": "heal_mp",
+    "amount": 15,
+    "price": 25,
+    "usable_in_battle": true,
+    "desc": "MP를 15 회복한다. 사범님 몰래 먹자.",
+    "icon": "item_pill",
+    "sell": 10
+  },
+  "manual_fragment": {
+    "name": "낡은 비급 조각",
+    "type": "key",
+    "usable_in_battle": false,
+    "desc": "'천하제일...' 다음 글자가 찢겨 있다. 뭐가 제일이라는 거지?",
+    "icon": "item_scroll"
+  },
+  "crucian": {
+    "name": "붕어",
+    "type": "fish",
+    "sell": 5,
+    "usable_in_battle": false,
+    "icon": "fish_crucian",
+    "desc": "평범한 붕어. 만복상회에 팔 수 있다."
+  },
+  "carp": {
+    "name": "잉어",
+    "type": "fish",
+    "sell": 14,
+    "usable_in_battle": false,
+    "icon": "fish_carp",
+    "desc": "통통한 잉어. 꽤 값이 나간다."
+  },
+  "golden_carp": {
+    "name": "금빛 잉어",
+    "type": "fish",
+    "sell": 45,
+    "usable_in_battle": false,
+    "icon": "fish_gold",
+    "desc": "전설의 금빛 잉어. 상인 만복의 눈이 반짝인다."
+  }
+}

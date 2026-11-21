@@ -1,0 +1,9 @@
+{
+  "_comment": "대화 화자 이름 → 초상화 id (assets/portraits/<id>_<표정>.png). 대사에 face 를 지정하면 그 표정.",
+  "도윤": "doyun",
+  "도장 사범 백운": "master",
+  "마을 주민 순이": "villager",
+  "상인 만복": "merchant",
+  "초급 산적 덕팔": "bandit",
+  "수련용 허수아비": "scarecrow"
+}

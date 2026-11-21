@@ -1,0 +1,7 @@
+# Godot 4
+.godot/
+/android/
+*.translation
+export_presets.cfg.local
+# 빌드 결과물
+/build/

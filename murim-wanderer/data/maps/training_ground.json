@@ -1,0 +1,100 @@
+{
+  "id": "training_ground",
+  "name": "청풍 수련장",
+  "size": [
+    20,
+    12
+  ],
+  "spawn": [
+    10,
+    2
+  ],
+  "tiles": [
+    "WWWWWWWWW##WWWWWWWWW",
+    "Wpppppppp##ppppppppW",
+    "WWppppppppppppppppWW",
+    "WppPppppppppppppPppW",
+    "WppppppppppppppppppW",
+    "WppppppppppppppppPpW",
+    "WppppppppppppppppppW",
+    "WppppppppppppppppppW",
+    "WppPppppppppppppPppW",
+    "WWpppppppppppppppppW",
+    "WpppppppppppppppppWW",
+    "WWWWWWWWWWWWWWWWWWWW"
+  ],
+  "npcs": [
+    {
+      "id": "bandit",
+      "sprite": "bandit",
+      "name": "초급 산적 덕팔",
+      "dialogue": "bandit",
+      "tile": [
+        10,
+        6
+      ],
+      "facing": "up",
+      "battle": "bandit",
+      "hide_if_flag": "bandit_defeated",
+      "win_flag": "bandit_defeated"
+    },
+    {
+      "id": "scarecrow1",
+      "sprite": "scarecrow",
+      "name": "수련용 허수아비",
+      "dialogue": "scarecrow",
+      "tile": [
+        5,
+        5
+      ],
+      "facing": "down",
+      "battle": "scarecrow",
+      "static_sprite": true
+    },
+    {
+      "id": "scarecrow2",
+      "sprite": "scarecrow",
+      "name": "수련용 허수아비",
+      "dialogue": "scarecrow",
+      "tile": [
+        14,
+        5
+      ],
+      "facing": "down",
+      "battle": "scarecrow",
+      "static_sprite": true
+    }
+  ],
+  "events": [
+    {
+      "id": "bandit_ambush",
+      "type": "battle_trigger",
+      "rect": [
+        8,
+        4,
+        4,
+        1
+      ],
+      "dialogue": "bandit_ambush",
+      "battle": "bandit",
+      "npc": "bandit",
+      "skip_if_flag": "bandit_defeated"
+    }
+  ],
+  "exits": [
+    {
+      "rect": [
+        9,
+        0,
+        2,
+        1
+      ],
+      "to": "cheongpung",
+      "spawn": [
+        14,
+        17
+      ],
+      "facing": "up"
+    }
+  ]
+}

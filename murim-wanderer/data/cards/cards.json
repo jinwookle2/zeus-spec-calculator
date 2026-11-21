@@ -1,0 +1,141 @@
+{
+  "_comment": "초식(카드) 데이터. cost=기(턴마다 3), mp=내력 추가 소모. skill=연결된 무공(장착 시 덱에 copies 장, 강화 성마다 upgrade 만큼 수치 증가). pool=reward 이면 전투 보상으로 등장.",
+  "strike": {
+    "name": "기본권",
+    "type": "attack",
+    "cost": 1,
+    "damage": 6,
+    "icon": "skill_fist",
+    "starter": 4,
+    "desc": "피해 {dmg}."
+  },
+  "defend": {
+    "name": "막기",
+    "type": "skill",
+    "cost": 1,
+    "block": 5,
+    "icon": "card_block",
+    "starter": 4,
+    "desc": "호신 {blk}."
+  },
+  "combo_fist": {
+    "name": "연속권",
+    "type": "attack",
+    "cost": 1,
+    "mp": 3,
+    "damage": 4,
+    "hits": 2,
+    "icon": "skill_combo",
+    "skill": "combo_fist",
+    "copies": 2,
+    "upgrade": 1,
+    "desc": "피해 {dmg} x2."
+  },
+  "kihap": {
+    "name": "기합",
+    "type": "skill",
+    "cost": 1,
+    "mp": 2,
+    "charge": 2.0,
+    "draw": 1,
+    "icon": "skill_kihap",
+    "skill": "kihap",
+    "copies": 1,
+    "upgrade": 0,
+    "desc": "다음 공격 2배. 1장 뽑기."
+  },
+  "breathing": {
+    "name": "청풍호흡",
+    "type": "skill",
+    "cost": 0,
+    "restore_mp": 4,
+    "block": 3,
+    "icon": "skill_breath",
+    "skill": "breathing",
+    "copies": 1,
+    "upgrade": 1,
+    "desc": "MP {mp} 회복. 호신 {blk}."
+  },
+  "iron_wall": {
+    "name": "철벽세",
+    "type": "skill",
+    "cost": 2,
+    "mp": 3,
+    "block": 14,
+    "icon": "skill_wall",
+    "skill": "iron_wall",
+    "copies": 1,
+    "upgrade": 3,
+    "desc": "호신 {blk}."
+  },
+  "wind_kick": {
+    "name": "청풍각",
+    "type": "attack",
+    "cost": 2,
+    "mp": 5,
+    "damage": 13,
+    "vulnerable": 2,
+    "icon": "skill_kick",
+    "skill": "wind_kick",
+    "copies": 2,
+    "upgrade": 3,
+    "desc": "피해 {dmg}. 허점 2."
+  },
+  "trip": {
+    "name": "발걸기",
+    "type": "attack",
+    "cost": 1,
+    "damage": 4,
+    "weak": 2,
+    "icon": "card_trip",
+    "pool": "reward",
+    "desc": "피해 {dmg}. 위축 2."
+  },
+  "focus": {
+    "name": "정신집중",
+    "type": "skill",
+    "cost": 0,
+    "draw": 2,
+    "icon": "card_focus",
+    "pool": "reward",
+    "desc": "카드 2장 뽑기."
+  },
+  "counter": {
+    "name": "반격 자세",
+    "type": "skill",
+    "cost": 1,
+    "block": 6,
+    "thorns": 3,
+    "icon": "card_counter",
+    "pool": "reward",
+    "desc": "호신 {blk}. 맞으면 반격 3."
+  },
+  "iron_palm": {
+    "name": "철사장",
+    "type": "attack",
+    "cost": 2,
+    "damage": 12,
+    "icon": "card_palm",
+    "pool": "reward",
+    "desc": "피해 {dmg}."
+  },
+  "fighting_spirit": {
+    "name": "투지",
+    "type": "power",
+    "cost": 1,
+    "strength": 2,
+    "icon": "card_spirit",
+    "pool": "reward",
+    "desc": "기세 +2 (전투 내내)."
+  },
+  "weak_point": {
+    "name": "급소 찌르기",
+    "type": "attack",
+    "cost": 1,
+    "damage": 3,
+    "vulnerable": 2,
+    "icon": "card_point",
+    "pool": "reward",
+    "desc": "피해 {dmg}. 허점 2."
+  }
+}

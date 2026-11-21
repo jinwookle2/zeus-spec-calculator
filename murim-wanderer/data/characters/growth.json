@@ -1,0 +1,26 @@
+{
+  "_comment": "성장 시스템 수치. 무공 강화(내공 소모), 장비 강화(냥 소모), 폐관수련(방치 보상).",
+  "skill_slots": 4,
+  "skill_upgrade": {
+    "max_level": 5,
+    "cost_qi": [10, 20, 35, 55, 80],
+    "power_per_level": 0.12,
+    "buff_per_level": 0.1,
+    "heal_per_level": 2
+  },
+  "gear": {
+    "fist_wrap": {"name": "주먹싸개", "stat": "attack", "per_level": 2, "max_level": 10, "icon": "gear_fist",
+                  "desc": "손에 감는 무명천. 강화할수록 공격력이 오른다."},
+    "martial_robe": {"name": "무복", "stat": "defense", "per_level": 2, "max_level": 10, "icon": "gear_robe",
+                     "desc": "질긴 무명 무복. 강화할수록 방어력이 오른다."}
+  },
+  "gear_cost_gold": [15, 25, 40, 60, 85, 115, 150, 190, 240, 300],
+  "offline": {
+    "min_minutes": 5,
+    "max_hours": 8,
+    "qi_per_minute": 0.5,
+    "qi_level_bonus": 0.1,
+    "gold_per_minute": 0.2
+  },
+  "battle_qi_ratio": 0.5
+}

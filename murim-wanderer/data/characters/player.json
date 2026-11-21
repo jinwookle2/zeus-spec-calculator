@@ -1,0 +1,36 @@
+{
+  "id": "doyun",
+  "name": "도윤",
+  "sprite": "res://assets/characters/doyun.png",
+  "base": {
+    "level": 1,
+    "max_hp": 60,
+    "max_mp": 20,
+    "attack": 12,
+    "defense": 6,
+    "agility": 8,
+    "gold": 30
+  },
+  "growth_per_level": {
+    "max_hp": 12,
+    "max_mp": 4,
+    "attack": 3,
+    "defense": 2,
+    "agility": 2
+  },
+  "exp_curve": {
+    "base": 20,
+    "factor": 1.5,
+    "max_level": 30
+  },
+  "starting_skills": [
+    "basic_fist",
+    "combo_fist",
+    "kihap"
+  ],
+  "starting_items": {
+    "herb": 3,
+    "qi_pill": 1
+  },
+  "battle": "res://assets/battle/doyun_"
+}

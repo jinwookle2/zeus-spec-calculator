@@ -1,0 +1,54 @@
+; Engine configuration file.
+; Godot 4.4 기준. 에디터에서 열면 자동으로 일부 항목이 추가될 수 있다.
+
+config_version=5
+
+[application]
+
+config/name="무림유랑기: 천하제일 허당전"
+config/description="2D 픽셀아트 코믹 무협 RPG 프로토타입 (Murim Wanderer)"
+run/main_scene="res://scenes/main/main_menu.tscn"
+config/features=PackedStringArray("4.4", "GL Compatibility")
+config/icon="res://icon.png"
+
+[autoload]
+
+InputSetup="*res://scripts/core/input_setup.gd"
+DataDB="*res://scripts/core/data_db.gd"
+Settings="*res://scripts/core/settings.gd"
+GameState="*res://scripts/core/game_state.gd"
+SaveManager="*res://scripts/save/save_manager.gd"
+SceneRouter="*res://scripts/core/scene_router.gd"
+
+[display]
+
+window/size/viewport_width=640
+window/size/viewport_height=360
+window/size/window_width_override=1280
+window/size/window_height_override=720
+window/stretch/mode="viewport"
+window/stretch/aspect="expand"
+window/handheld/orientation=4
+
+[editor_plugins]
+
+enabled=PackedStringArray()
+
+[gui]
+
+theme/custom_font="res://assets/fonts/Galmuri11.ttf"
+theme/default_font_antialiasing=0
+theme/default_font_hinting=0
+
+[input_devices]
+
+pointing/emulate_touch_from_mouse=true
+
+[rendering]
+
+textures/canvas_textures/default_texture_filter=0
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+2d/snap/snap_2d_transforms_to_pixel=true
+2d/snap/snap_2d_vertices_to_pixel=true
+environment/defaults/default_clear_color=Color(0.105882, 0.0901961, 0.137255, 1)

@@ -1,0 +1,65 @@
+{
+  "basic_fist": {
+    "name": "기본권",
+    "type": "attack",
+    "mp_cost": 0,
+    "power": 1.0,
+    "hits": 1,
+    "learn_level": 1,
+    "icon": "skill_fist",
+    "desc": "기본 초식 「기본권」 카드의 바탕. 장착 해제 불가.",
+    "use_text": "{user}의 기본권!"
+  },
+  "combo_fist": {
+    "name": "연속권",
+    "type": "attack",
+    "mp_cost": 5,
+    "power": 0.75,
+    "hits": 2,
+    "learn_level": 1,
+    "icon": "skill_combo",
+    "desc": "장착 시 「연속권」 카드 2장 (기1·MP3, 2연타). 강화하면 타격당 +1.",
+    "use_text": "{user}의 연속권! 다다닥!"
+  },
+  "kihap": {
+    "name": "기합",
+    "type": "buff",
+    "mp_cost": 3,
+    "buff_multiplier": 1.8,
+    "learn_level": 1,
+    "icon": "skill_kihap",
+    "desc": "장착 시 「기합」 카드 1장 (기1·MP2, 다음 공격 2배·1장 뽑기).",
+    "use_text": "{user}: 하아아아앗!!"
+  },
+  "breathing": {
+    "name": "청풍호흡",
+    "type": "heal_mp",
+    "mp_cost": 0,
+    "amount": 6,
+    "learn_level": 2,
+    "icon": "skill_breath",
+    "desc": "장착 시 「청풍호흡」 카드 1장 (기0, MP 회복+호신). 강화하면 +1.",
+    "use_text": "{user}: 스읍... 후우..."
+  },
+  "iron_wall": {
+    "name": "철벽세",
+    "type": "guard",
+    "mp_cost": 4,
+    "guard_multiplier": 0.25,
+    "learn_level": 3,
+    "icon": "skill_wall",
+    "desc": "장착 시 「철벽세」 카드 1장 (기2·MP3, 호신 14). 강화하면 +3.",
+    "use_text": "{user}의 철벽세!"
+  },
+  "wind_kick": {
+    "name": "청풍각",
+    "type": "attack",
+    "mp_cost": 8,
+    "power": 1.7,
+    "hits": 1,
+    "learn_level": 4,
+    "icon": "skill_kick",
+    "desc": "장착 시 「청풍각」 카드 2장 (기2·MP5, 큰 피해+허점). 강화하면 +3.",
+    "use_text": "{user}의 청풍각!!"
+  }
+}
