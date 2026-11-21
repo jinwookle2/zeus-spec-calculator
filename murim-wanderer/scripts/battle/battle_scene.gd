@@ -237,7 +237,7 @@ func _build() -> void:
 	_pile_label.anchor_top = 1.0
 	_pile_label.anchor_bottom = 1.0
 	_pile_label.offset_left = 6
-	_pile_label.offset_top = -40
+	_pile_label.offset_top = -30
 	_pile_label.custom_minimum_size = Vector2(60, 0)
 	_pile_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	add_child(_pile_label)
@@ -474,14 +474,16 @@ func _make_card(card_id: String, index: int) -> Button:
 	b.add_child(icon)
 	var nm := UiKit.label(s["name"], 12, Color8(40, 26, 24))
 	nm.position = Vector2(0, 42)
+	nm.custom_minimum_size = Vector2(CARD_SIZE.x, 14)
 	nm.size = Vector2(CARD_SIZE.x, 14)
 	nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	nm.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(nm)
 	var ds := UiKit.label(s["desc"], 12, Color8(90, 64, 54))
+	ds.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ds.custom_minimum_size = Vector2(CARD_SIZE.x - 4, 0)
 	ds.position = Vector2(2, 57)
 	ds.size = Vector2(CARD_SIZE.x - 4, 40)
-	ds.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	ds.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	ds.add_theme_constant_override("line_spacing", -2)
 	ds.mouse_filter = Control.MOUSE_FILTER_IGNORE
