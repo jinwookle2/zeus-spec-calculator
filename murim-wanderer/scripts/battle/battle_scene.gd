@@ -221,7 +221,9 @@ func _build() -> void:
 	orb.anchor_top = 1.0
 	orb.anchor_bottom = 1.0
 	orb.offset_left = 8
+	orb.offset_right = 64
 	orb.offset_top = -100
+	orb.offset_bottom = -44
 	orb.custom_minimum_size = Vector2(56, 48)
 	add_child(orb)
 	var ov := VBoxContainer.new()
@@ -237,9 +239,12 @@ func _build() -> void:
 	_pile_label.anchor_top = 1.0
 	_pile_label.anchor_bottom = 1.0
 	_pile_label.offset_left = 6
-	_pile_label.offset_top = -30
-	_pile_label.custom_minimum_size = Vector2(60, 0)
-	_pile_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_pile_label.offset_right = 68
+	_pile_label.offset_top = -40
+	_pile_label.offset_bottom = -4
+	_pile_label.add_theme_color_override("font_color", Color8(236, 226, 204))
+	_pile_label.add_theme_color_override("font_outline_color", Color8(20, 14, 14))
+	_pile_label.add_theme_constant_override("outline_size", 4)
 	add_child(_pile_label)
 
 	# 손패
