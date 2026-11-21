@@ -12,7 +12,7 @@ signal _reward_done
 
 const PLAYER_HOME := Vector2(150, 226)  # 발 위치 (640x360 기준)
 const ENEMY_HOME := Vector2(480, 220)
-const CARD_SIZE := Vector2(62, 88)
+const CARD_SIZE := Vector2(72, 98)
 
 var logic := BattleLogic.new()
 var enemy_id := ""
@@ -123,7 +123,7 @@ func _build() -> void:
 	# 적 의도 (머리 위)
 	_intent_box = HBoxContainer.new()
 	_intent_box.add_theme_constant_override("separation", 2)
-	_intent_box.position = ENEMY_HOME + Vector2(-26, -168)
+	_intent_box.position = ENEMY_HOME + Vector2(-112, -138)
 	_stage.add_child(_intent_box)
 	_intent_icon = TextureRect.new()
 	_intent_box.add_child(_intent_icon)
@@ -201,8 +201,8 @@ func _build() -> void:
 	band.anchor_right = 1.0
 	band.anchor_top = 1.0
 	band.anchor_bottom = 1.0
-	band.offset_top = -124
-	band.offset_bottom = -104
+	band.offset_top = -126
+	band.offset_bottom = -106
 	band.mouse_filter = Control.MOUSE_FILTER_STOP
 	band.gui_input.connect(_on_message_input)
 	add_child(band)
@@ -220,8 +220,8 @@ func _build() -> void:
 	orb.add_theme_stylebox_override("panel", orb_style)
 	orb.anchor_top = 1.0
 	orb.anchor_bottom = 1.0
-	orb.offset_left = 10
-	orb.offset_top = -96
+	orb.offset_left = 8
+	orb.offset_top = -100
 	orb.custom_minimum_size = Vector2(56, 48)
 	add_child(orb)
 	var ov := VBoxContainer.new()
@@ -236,9 +236,9 @@ func _build() -> void:
 	_pile_label = UiKit.label("", 12, UiKit.DIM)
 	_pile_label.anchor_top = 1.0
 	_pile_label.anchor_bottom = 1.0
-	_pile_label.offset_left = 8
+	_pile_label.offset_left = 6
 	_pile_label.offset_top = -40
-	_pile_label.custom_minimum_size = Vector2(80, 0)
+	_pile_label.custom_minimum_size = Vector2(60, 0)
 	_pile_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	add_child(_pile_label)
 
@@ -248,9 +248,9 @@ func _build() -> void:
 	_hand_box.anchor_right = 1.0
 	_hand_box.anchor_top = 1.0
 	_hand_box.anchor_bottom = 1.0
-	_hand_box.offset_left = 92
-	_hand_box.offset_right = -92
-	_hand_box.offset_top = -98
+	_hand_box.offset_left = 70
+	_hand_box.offset_right = -88
+	_hand_box.offset_top = -104
 	_hand_box.offset_bottom = -4
 	_hand_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_hand_box)
@@ -360,7 +360,7 @@ func _refresh_bars() -> void:
 	_e_hp_txt.text = "%d/%d" % [int(e["hp"]), int(e["max_hp"])]
 	_e_status.text = _status_text(e, 1.0)
 	_energy_label.text = "%d/%d" % [int(p["energy"]), int(p["max_energy"])]
-	_pile_label.text = "덱 %d · 버림 %d" % [logic.draw_pile.size(), logic.discard.size()]
+	_pile_label.text = "덱 %d\n버림 %d" % [logic.draw_pile.size(), logic.discard.size()]
 
 
 func _status_text(who: Dictionary, charge: float) -> String:
@@ -464,24 +464,24 @@ func _make_card(card_id: String, index: int) -> Button:
 	b.add_child(cost_bg)
 	if int(s["mp"]) > 0:
 		var mp := UiKit.label("MP%d" % s["mp"], 12, Color8(40, 80, 150))
-		mp.position = Vector2(30, 2)
+		mp.position = Vector2(40, 2)
 		mp.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(mp)
 	var icon := TextureRect.new()
 	icon.texture = load("res://assets/ui/icons/%s.png" % s["icon"])
-	icon.position = Vector2(19, 16)
+	icon.position = Vector2(24, 17)
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(icon)
 	var nm := UiKit.label(s["name"], 12, Color8(40, 26, 24))
-	nm.position = Vector2(0, 40)
+	nm.position = Vector2(0, 42)
 	nm.size = Vector2(CARD_SIZE.x, 14)
 	nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	nm.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(nm)
 	var ds := UiKit.label(s["desc"], 12, Color8(90, 64, 54))
-	ds.position = Vector2(3, 55)
-	ds.size = Vector2(CARD_SIZE.x - 6, 32)
-	ds.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
+	ds.position = Vector2(2, 57)
+	ds.size = Vector2(CARD_SIZE.x - 4, 40)
+	ds.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	ds.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	ds.add_theme_constant_override("line_spacing", -2)
 	ds.mouse_filter = Control.MOUSE_FILTER_IGNORE
